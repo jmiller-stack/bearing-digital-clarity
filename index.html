@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clarity | AI Clinical Note Generator</title>
+    <meta
+      name="description"
+      content="Clarity helps therapists turn structured session input into polished SOAP, DAP, and BIRP notes."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="ambient ambient-left"></div>
+      <div class="ambient ambient-right"></div>
+
+      <header class="hero">
+        <div class="eyebrow">Bearing Digital Demo</div>
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <h1>Your session is over. Your note is done.</h1>
+            <p>
+              Clarity turns quick structured session input into professional
+              clinical documentation in SOAP, DAP, or BIRP format.
+            </p>
+          </div>
+          <aside class="hero-panel">
+            <div class="hero-panel-label">For clinician review</div>
+            <div class="hero-stat">2-3 minutes to input</div>
+            <div class="hero-stat">15-20 seconds to draft</div>
+            <div class="hero-stat">Frontend only via secure worker</div>
+          </aside>
+        </div>
+      </header>
+
+      <main class="app-shell">
+        <section id="form-view" class="state-view">
+          <div class="toolbar">
+            <div>
+              <h2>Session Intake</h2>
+              <p>
+                Capture the session once. Generate a complete note in the
+                format your practice uses.
+              </p>
+            </div>
+            <div class="toolbar-actions">
+              <button id="load-demo" class="button button-secondary" type="button">
+                Load Demo
+              </button>
+              <button id="clear-form" class="button button-ghost" type="button">
+                Clear Form
+              </button>
+            </div>
+          </div>
+
+          <form id="note-form" novalidate>
+            <div class="form-grid">
+              <section class="panel">
+                <div class="panel-header">
+                  <h3>Section A · Session Metadata</h3>
+                </div>
+                <div class="field-grid two-up">
+                  <label class="field">
+                    <span>Client Name or Initials</span>
+                    <input type="text" name="client_name" required />
+                  </label>
+                  <label class="field">
+                    <span>Session Number</span>
+                    <input type="number" name="session_number" min="1" step="1" required />
+                  </label>
+                  <label class="field">
+                    <span>Session Date</span>
+                    <input type="date" name="session_date" required />
+                  </label>
+                  <label class="field">
+                    <span>Duration</span>
+                    <select name="duration_minutes" required>
+                      <option value="30">30 min</option>
+                      <option value="45">45 min</option>
+                      <option value="50" selected>50 min</option>
+                      <option value="60">60 min</option>
+                      <option value="90">90 min</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Session Type</span>
+                    <select name="session_type" required>
+                      <option value="Individual" selected>Individual</option>
+                      <option value="Couple">Couple</option>
+                      <option value="Family">Family</option>
+                      <option value="Group">Group</option>
+                    </select>
+                  </label>
+                  <fieldset class="field note-format-field">
+                    <legend>Note Format</legend>
+                    <div class="radio-group compact">
+                      <label><input type="radio" name="note_format" value="SOAP" checked /> SOAP</label>
+                      <label><input type="radio" name="note_format" value="DAP" /> DAP</label>
+                      <label><input type="radio" name="note_format" value="BIRP" /> BIRP</label>
+                    </div>
+                  </fieldset>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-header">
+                  <h3>Section B · Treatment Context</h3>
+                </div>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>Primary Diagnosis</span>
+                    <input
+                      type="text"
+                      name="primary_diagnosis"
+                      list="diagnosis-suggestions"
+                      required
+                    />
+                    <datalist id="diagnosis-suggestions">
+                      <option value="Major Depressive Disorder"></option>
+                      <option value="Generalized Anxiety Disorder"></option>
+                      <option value="PTSD"></option>
+                      <option value="Panic Disorder"></option>
+                      <option value="Adjustment Disorder"></option>
+                      <option value="Social Anxiety"></option>
+                      <option value="OCD"></option>
+                      <option value="Bipolar"></option>
+                      <option value="ADHD"></option>
+                      <option value="Substance Use Disorder"></option>
+                      <option value="Relationship Issues"></option>
+                      <option value="Grief"></option>
+                    </datalist>
+                  </label>
+                  <label class="field">
+                    <span>Treatment Modality</span>
+                    <select name="treatment_modality" required>
+                      <option value="CBT" selected>CBT</option>
+                      <option value="DBT">DBT</option>
+                      <option value="EMDR">EMDR</option>
+                      <option value="Psychodynamic">Psychodynamic</option>
+                      <option value="ACT">ACT</option>
+                      <option value="MI">MI</option>
+                      <option value="Solution-Focused">Solution-Focused</option>
+                      <option value="Person-Centered">Person-Centered</option>
+                      <option value="Integrative">Integrative</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+                  <label class="field field-full">
+                    <span>Current Treatment Goals</span>
+                    <textarea
+                      name="treatment_goals"
+                      rows="3"
+                      placeholder="e.g., Reduce panic attacks from 5/week to 1/week. Improve sleep onset to under 30 minutes."
+                    ></textarea>
+                    <small>If provided, the note will reference progress toward these goals.</small>
+                  </label>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-header">
+                  <h3>Section C · Session Content</h3>
+                </div>
+                <div class="field-grid">
+                  <label class="field field-full">
+                    <span>What did the client report?</span>
+                    <textarea
+                      name="client_report"
+                      rows="5"
+                      placeholder="What did the client say about their week, symptoms, homework, or concerns? Include any specific quotes if relevant."
+                      required
+                    ></textarea>
+                    <small>This becomes the Subjective section of your SOAP note.</small>
+                  </label>
+
+                  <fieldset class="field field-full">
+                    <legend>What interventions did you use?</legend>
+                    <div class="checkbox-grid" id="intervention-grid">
+                      <label><input type="checkbox" name="interventions_checked" value="Cognitive restructuring" /> Cognitive restructuring</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Behavioral activation" /> Behavioral activation</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Exposure (in vivo)" /> Exposure (in vivo)</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Exposure (imaginal)" /> Exposure (imaginal)</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Relaxation / breathing" /> Relaxation / breathing</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Mindfulness exercise" /> Mindfulness exercise</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Psychoeducation" /> Psychoeducation</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Thought records" /> Thought records</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Role play / rehearsal" /> Role play / rehearsal</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Motivational interviewing" /> Motivational interviewing</label>
+                      <label><input type="checkbox" name="interventions_checked" value="EMDR processing" /> EMDR processing</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Somatic techniques" /> Somatic techniques</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Grief processing" /> Grief processing</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Safety planning" /> Safety planning</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Family/couples communication" /> Family/couples communication</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Values clarification" /> Values clarification</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Skills training (DBT)" /> Skills training (DBT)</label>
+                      <label><input type="checkbox" name="interventions_checked" value="Journaling assignment" /> Journaling assignment</label>
+                    </div>
+                    <label class="field embedded-field">
+                      <span>Other intervention</span>
+                      <input type="text" name="interventions_other" placeholder="Optional" />
+                    </label>
+                  </fieldset>
+
+                  <label class="field field-full">
+                    <span>Brief description of interventions used</span>
+                    <textarea
+                      name="interventions_description"
+                      rows="4"
+                      placeholder="What specifically did you do? e.g., 'Reviewed thought log from last week. Client identified 3 cognitive distortions. Practiced reframing in session with Socratic questioning.'"
+                      required
+                    ></textarea>
+                  </label>
+
+                  <fieldset class="field field-full">
+                    <legend>What did you observe about the client?</legend>
+                    <div class="field-grid three-up">
+                      <label class="field">
+                        <span>Affect</span>
+                        <select name="affect" required>
+                          <option value="">Select</option>
+                          <option value="Depressed">Depressed</option>
+                          <option value="Anxious">Anxious</option>
+                          <option value="Flat">Flat</option>
+                          <option value="Constricted">Constricted</option>
+                          <option value="Euthymic">Euthymic</option>
+                          <option value="Bright">Bright</option>
+                          <option value="Labile">Labile</option>
+                          <option value="Irritable">Irritable</option>
+                          <option value="Tearful">Tearful</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Engagement</span>
+                        <select name="engagement" required>
+                          <option value="">Select</option>
+                          <option value="Fully engaged">Fully engaged</option>
+                          <option value="Mostly engaged">Mostly engaged</option>
+                          <option value="Partially engaged">Partially engaged</option>
+                          <option value="Minimally engaged">Minimally engaged</option>
+                          <option value="Resistant">Resistant</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Eye Contact</span>
+                        <select name="eye_contact" required>
+                          <option value="">Select</option>
+                          <option value="Consistent">Consistent</option>
+                          <option value="Intermittent">Intermittent</option>
+                          <option value="Avoidant">Avoidant</option>
+                          <option value="N/A-Telehealth">N/A-Telehealth</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Appearance</span>
+                        <select name="appearance" required>
+                          <option value="">Select</option>
+                          <option value="Well-groomed">Well-groomed</option>
+                          <option value="Casually dressed">Casually dressed</option>
+                          <option value="Disheveled">Disheveled</option>
+                          <option value="Unremarkable">Unremarkable</option>
+                          <option value="N/A-Telehealth">N/A-Telehealth</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Speech</span>
+                        <select name="speech" required>
+                          <option value="">Select</option>
+                          <option value="Normal rate &amp; volume">Normal rate &amp; volume</option>
+                          <option value="Pressured">Pressured</option>
+                          <option value="Slow">Slow</option>
+                          <option value="Soft">Soft</option>
+                          <option value="Monotone">Monotone</option>
+                          <option value="Unremarkable">Unremarkable</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Thought Process</span>
+                        <select name="thought_process" required>
+                          <option value="">Select</option>
+                          <option value="Logical &amp; goal-directed">Logical &amp; goal-directed</option>
+                          <option value="Tangential">Tangential</option>
+                          <option value="Circumstantial">Circumstantial</option>
+                          <option value="Racing">Racing</option>
+                          <option value="Perseverative">Perseverative</option>
+                          <option value="Unremarkable">Unremarkable</option>
+                        </select>
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <label class="field field-full">
+                    <span>Additional observations</span>
+                    <textarea
+                      name="additional_observations"
+                      rows="2"
+                      placeholder="Anything else notable? e.g., 'Client became tearful when discussing mother's illness.'"
+                    ></textarea>
+                  </label>
+
+                  <label class="field field-full">
+                    <span>How did the client respond to today's session?</span>
+                    <textarea
+                      name="client_response"
+                      rows="3"
+                      placeholder="How did the client respond to the interventions? Any breakthroughs, resistance, or notable moments?"
+                      required
+                    ></textarea>
+                  </label>
+
+                  <fieldset class="field field-full">
+                    <legend>Progress toward treatment goals</legend>
+                    <div class="radio-group">
+                      <label><input type="radio" name="progress" value="Significant progress" /> Significant progress</label>
+                      <label><input type="radio" name="progress" value="Some progress" checked /> Some progress</label>
+                      <label><input type="radio" name="progress" value="No notable change" /> No notable change</label>
+                      <label><input type="radio" name="progress" value="Regression" /> Regression</label>
+                      <label><input type="radio" name="progress" value="Too early to assess" /> Too early to assess</label>
+                    </div>
+                  </fieldset>
+
+                  <fieldset class="field field-full">
+                    <legend>Risk Assessment</legend>
+                    <div class="radio-group">
+                      <label><input type="radio" name="risk_level" value="No risk indicators" checked /> No risk indicators</label>
+                      <label><input type="radio" name="risk_level" value="Low risk — no imminent concern" /> Low risk — no imminent concern</label>
+                      <label><input type="radio" name="risk_level" value="Moderate risk — discussed safety plan" /> Moderate risk — discussed safety plan</label>
+                      <label><input type="radio" name="risk_level" value="High risk — safety plan activated / crisis protocol" /> High risk — safety plan activated / crisis protocol</label>
+                    </div>
+                  </fieldset>
+
+                  <label id="risk-details-field" class="field field-full is-hidden">
+                    <span>If moderate or high risk, briefly describe</span>
+                    <textarea name="risk_details" rows="3"></textarea>
+                  </label>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-header">
+                  <h3>Section D · Plan for Next Session</h3>
+                </div>
+                <div class="field-grid">
+                  <label class="field field-full">
+                    <span>Plan for next session</span>
+                    <textarea
+                      name="plan_next_session"
+                      rows="3"
+                      placeholder="What will you focus on next time? e.g., 'Begin exposure hierarchy for social anxiety. Review thought log homework.'"
+                      required
+                    ></textarea>
+                  </label>
+                  <label class="field field-full">
+                    <span>Homework assigned</span>
+                    <textarea
+                      name="homework"
+                      rows="2"
+                      placeholder="e.g., 'Complete thought log daily. Practice 4-7-8 breathing twice per day. Read chapter 3 of workbook.'"
+                    ></textarea>
+                  </label>
+                  <label class="field">
+                    <span>Next appointment</span>
+                    <input
+                      type="text"
+                      name="next_appointment"
+                      placeholder="e.g., 'Next Tuesday at 2pm' or 'Weekly'"
+                    />
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <section class="generate-panel panel">
+              <div class="generate-copy">
+                <h3>Generate Clinical Note</h3>
+                <p id="generate-caption">
+                  Note format: SOAP · Estimated generation time: 15-20 seconds
+                </p>
+              </div>
+              <div class="generate-actions">
+                <div id="form-message" class="inline-message" aria-live="polite"></div>
+                <button id="generate-button" class="button button-primary button-large" type="submit">
+                  Generate Clinical Note
+                </button>
+              </div>
+            </section>
+          </form>
+        </section>
+
+        <section id="loading-view" class="state-view is-hidden">
+          <div class="loading-panel panel">
+            <div class="spinner"></div>
+            <h2 id="loading-title">Generating your SOAP note...</h2>
+            <p>
+              Clarity is drafting your note based on your session input. This
+              typically takes 15-20 seconds.
+            </p>
+          </div>
+        </section>
+
+        <section id="note-view" class="state-view is-hidden">
+          <div class="note-header panel">
+            <div>
+              <div class="draft-badge">Draft · For Clinician Review</div>
+              <h2 id="note-title">SOAP Progress Note</h2>
+              <p id="note-metadata" class="note-meta"></p>
+              <p id="note-diagnosis" class="note-meta secondary"></p>
+            </div>
+            <div class="toolbar-actions">
+              <button id="back-to-form" class="button button-ghost" type="button">
+                Edit Inputs
+              </button>
+            </div>
+          </div>
+
+          <div id="note-sections" class="note-section-list"></div>
+
+          <section class="note-actions panel">
+            <div class="toolbar-actions">
+              <button id="copy-note" class="button button-primary" type="button">
+                Copy to Clipboard
+              </button>
+              <button id="regenerate-note" class="button button-secondary" type="button">
+                Regenerate Entire Note
+              </button>
+              <button id="new-note" class="button button-ghost" type="button">
+                New Note
+              </button>
+            </div>
+            <div id="copy-status" class="inline-message" aria-live="polite"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <template id="note-card-template">
+      <article class="note-card panel">
+        <div class="note-card-header">
+          <div>
+            <div class="note-card-label"></div>
+            <h3 class="note-card-title"></h3>
+          </div>
+          <div class="note-card-actions">
+            <span class="section-status">Unedited</span>
+            <button class="button button-ghost button-small edit-toggle" type="button">Edit</button>
+          </div>
+        </div>
+        <div class="note-card-body">
+          <p class="note-card-content"></p>
+          <div class="edit-panel is-hidden">
+            <textarea rows="8"></textarea>
+            <div class="edit-actions">
+              <button class="button button-secondary button-small save-edit" type="button">Save</button>
+              <button class="button button-ghost button-small cancel-edit" type="button">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
