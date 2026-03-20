@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   userId: "clarity_user_id",
 };
 
+const DEFAULT_TEMPLATE_LABEL = "Default (SOAP/DAP/BIRP)";
 const HCC_TEMPLATE_NAME = "HCC SOAP Note";
 const FALLBACK_TEMPLATES = [
   {
@@ -91,7 +92,6 @@ const state = {
   feedbackSubmitted: false,
   feedbackPending: false,
   templates: [],
-  defaultTemplateId: "",
   diagnoses: [],
   userId: "",
   copyResetTimers: new Map(),
@@ -135,6 +135,7 @@ const elements = {
   skipFeedback: document.querySelector("#skip-feedback"),
   feedbackMessage: document.querySelector("#feedback-message"),
   noteTemplate: document.querySelector("#note-template"),
+  noteFormatField: document.querySelector("#note-format-field"),
   primaryDiagnosisInput: document.querySelector("#primary-diagnosis-input"),
   primaryDiagnosisList: document.querySelector("#primary-diagnosis-list"),
   primaryDiagnosisHidden: document.querySelector('input[name="primary_diagnosis"]'),
@@ -287,6 +288,11 @@ function renderTemplateOptions() {
   const previousValue = elements.noteTemplate.value;
   elements.noteTemplate.innerHTML = "";
 
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = DEFAULT_TEMPLATE_LABEL;
+  elements.noteTemplate.appendChild(defaultOption);
+
   state.templates.forEach((template) => {
     const option = document.createElement("option");
     option.value = String(template.id);
@@ -295,13 +301,12 @@ function renderTemplateOptions() {
     elements.noteTemplate.appendChild(option);
   });
 
-  const defaultTemplate = state.templates.find((template) => template.name === HCC_TEMPLATE_NAME) || state.templates[0];
-  state.defaultTemplateId = defaultTemplate ? String(defaultTemplate.id) : "";
-
-  if (previousValue && state.templates.some((template) => String(template.id) === previousValue)) {
+  if (previousValue === "" || previousValue == null) {
+    elements.noteTemplate.value = "";
+  } else if (state.templates.some((template) => String(template.id) === previousValue)) {
     elements.noteTemplate.value = previousValue;
-  } else if (state.defaultTemplateId) {
-    elements.noteTemplate.value = state.defaultTemplateId;
+  } else {
+    elements.noteTemplate.value = "";
   }
 }
 
@@ -405,8 +410,8 @@ function resolveTemplateValue(templateId, templateName) {
 }
 
 function applyDefaultTemplateSelection() {
-  if (elements.noteTemplate && state.defaultTemplateId) {
-    elements.noteTemplate.value = state.defaultTemplateId;
+  if (elements.noteTemplate) {
+    elements.noteTemplate.value = "";
   }
 }
 
@@ -958,9 +963,13 @@ function toggleRiskDetails() {
 
 function enforceTemplateSelection() {
   const selectedTemplate = getSelectedTemplate();
-  if (!selectedTemplate) return;
+  const isHccTemplate = selectedTemplate?.name === HCC_TEMPLATE_NAME;
 
-  if (selectedTemplate.name === HCC_TEMPLATE_NAME) {
+  if (elements.noteFormatField) {
+    elements.noteFormatField.classList.toggle("is-hidden", isHccTemplate);
+  }
+
+  if (isHccTemplate) {
     elements.form.elements.note_format.value = "SOAP";
     syncCheckedValue("note_format", "SOAP");
   }
@@ -976,7 +985,7 @@ function getSelectedTemplate() {
 function syncFormatCaption() {
   const format = elements.form.elements.note_format.value || "SOAP";
   const template = getSelectedTemplate();
-  const templateLabel = template?.name || HCC_TEMPLATE_NAME;
+  const templateLabel = template?.name || DEFAULT_TEMPLATE_LABEL;
   elements.generateCaption.textContent = `Template: ${templateLabel} · Note format: ${format} · Estimated generation time: 15-20 seconds`;
 }
 
