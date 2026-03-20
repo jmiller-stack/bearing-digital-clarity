@@ -83,6 +83,67 @@ const DEMO_DATA = {
   next_appointment: "Weekly - next Tuesday 2pm",
 };
 
+const VOICE_MAX_DURATION_MS = 5 * 60 * 1000;
+const VOICE_EXTRACTABLE_FIELDS = [
+  "client_report",
+  "interventions_checked",
+  "interventions_description",
+  "affect",
+  "engagement",
+  "eye_contact",
+  "appearance",
+  "speech",
+  "thought_process",
+  "additional_observations",
+  "client_response",
+  "progress",
+  "risk_level",
+  "risk_details",
+  "plan_next_session",
+  "homework",
+  "next_appointment",
+  "treatment_goals",
+  "primary_diagnosis",
+];
+
+const FIELD_LABELS = {
+  client_report: "Client Report",
+  interventions_checked: "Interventions",
+  interventions_description: "Interventions Description",
+  affect: "Affect",
+  engagement: "Engagement",
+  eye_contact: "Eye Contact",
+  appearance: "Appearance",
+  speech: "Speech",
+  thought_process: "Thought Process",
+  additional_observations: "Additional Observations",
+  client_response: "Client Response",
+  progress: "Progress",
+  risk_level: "Risk Level",
+  risk_details: "Risk Details",
+  plan_next_session: "Plan for Next Session",
+  homework: "Homework",
+  next_appointment: "Next Appointment",
+  treatment_goals: "Treatment Goals",
+  primary_diagnosis: "Primary Diagnosis",
+};
+
+const VOICE_INTERVENTION_MAP = {
+  CBT: ["Cognitive restructuring"],
+  "TF-CBT": [],
+  "DBT skills": ["Skills training (DBT)"],
+  EFT: [],
+  "Gottman Method": [],
+  "Mindfulness/grounding": ["Mindfulness exercise"],
+  Psychoeducation: ["Psychoeducation"],
+  "Motivational Interviewing": ["Motivational interviewing"],
+  "Safety planning": ["Safety planning"],
+  "Mind/Body Connection": ["Somatic techniques"],
+  ACT: ["Values clarification"],
+  "Communication skills training": ["Family/couples communication"],
+  Other: [],
+};
+
 const state = {
   currentView: "form",
   latestRequest: null,
@@ -95,6 +156,17 @@ const state = {
   diagnoses: [],
   userId: "",
   copyResetTimers: new Map(),
+  voice: {
+    status: "idle",
+    recorder: null,
+    stream: null,
+    chunks: [],
+    timerIntervalId: null,
+    autoStopTimeoutId: null,
+    recordingStartedAt: 0,
+    transcript: "",
+    populatedFields: [],
+  },
 };
 
 const elements = {
@@ -140,6 +212,21 @@ const elements = {
   primaryDiagnosisList: document.querySelector("#primary-diagnosis-list"),
   primaryDiagnosisHidden: document.querySelector('input[name="primary_diagnosis"]'),
   primaryDiagnosisChips: document.querySelector("#primary-diagnosis-chips"),
+  voicePanel: document.querySelector("#voice-panel"),
+  voiceRecorderCard: document.querySelector("#voice-recorder-card"),
+  voiceRecordButton: document.querySelector("#voice-record-button"),
+  voiceButtonLabel: document.querySelector("#voice-button-label"),
+  voiceTimer: document.querySelector("#voice-timer"),
+  voiceStatusText: document.querySelector("#voice-status-text"),
+  voiceStatusBadge: document.querySelector("#voice-status-badge"),
+  voiceRecordingIndicator: document.querySelector("#voice-recording-indicator"),
+  voiceProcessingSpinner: document.querySelector("#voice-processing-spinner"),
+  voiceMessage: document.querySelector("#voice-message"),
+  voiceEditFields: document.querySelector("#voice-edit-fields"),
+  voiceTranscriptField: document.querySelector("#voice-transcript-field"),
+  voiceTranscript: document.querySelector("#voice-transcript"),
+  voicePopulatedFields: document.querySelector("#voice-populated-fields"),
+  voicePopulatedList: document.querySelector("#voice-populated-list"),
 };
 
 init().catch((error) => {
@@ -159,6 +246,7 @@ async function init() {
   toggleRiskDetails();
   syncFeedbackButtons();
   syncDiagnosisField();
+  updateVoiceUI();
   if (elements.baaLink) elements.baaLink.href = `${BACKEND_URL}/legal/baa`;
 }
 
@@ -183,6 +271,8 @@ function bindEvents() {
   on(elements.settingsClose, "click", closeSettingsModal);
   on(elements.requestData, "click", handleRequestData);
   on(elements.deleteData, "click", handleDeleteData);
+  on(elements.voiceRecordButton, "click", handleVoiceRecordButton);
+  on(elements.voiceEditFields, "click", handleVoiceEditFields);
   on(elements.settingsOverlay, "click", (event) => {
     if (event.target === elements.settingsOverlay) closeSettingsModal();
   });
@@ -218,6 +308,8 @@ function bindEvents() {
     persistDraft();
   });
 
+  window.addEventListener("beforeunload", cleanupVoiceResources);
+
   bindDiagnosisEvents();
 }
 
@@ -244,6 +336,412 @@ function bindDiagnosisEvents() {
   elements.primaryDiagnosisInput.addEventListener("blur", () => {
     commitDiagnosisInput();
   });
+}
+
+async function handleVoiceRecordButton() {
+  if (state.voice.status === "processing") return;
+
+  if (state.voice.status === "recording") {
+    stopVoiceRecording();
+    return;
+  }
+
+  await startVoiceRecording();
+}
+
+function handleVoiceEditFields() {
+  const firstField = state.voice.populatedFields[0];
+  if (!firstField) return;
+  focusField(firstField);
+}
+
+async function startVoiceRecording() {
+  clearInlineMessage(elements.voiceMessage);
+
+  if (!window.MediaRecorder) {
+    setInlineMessage(elements.voiceMessage, "This browser does not support in-browser audio recording.", "error");
+    return;
+  }
+
+  try {
+    const stream = await requestMicrophoneStream();
+    const mimeType = getSupportedAudioMimeType();
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+    cleanupVoiceResources();
+    state.voice.stream = stream;
+    state.voice.recorder = recorder;
+    state.voice.chunks = [];
+    state.voice.recordingStartedAt = Date.now();
+    state.voice.transcript = "";
+    state.voice.populatedFields = [];
+    setVoiceStatus("recording");
+    clearVoiceFieldHighlights();
+    renderVoiceTranscript("");
+    renderVoicePopulatedFields([]);
+    updateVoiceTimer();
+    state.voice.timerIntervalId = window.setInterval(updateVoiceTimer, 1000);
+    state.voice.autoStopTimeoutId = window.setTimeout(() => {
+      setInlineMessage(elements.voiceMessage, "Recording reached the 5 minute limit and stopped automatically.", "warning");
+      stopVoiceRecording();
+    }, VOICE_MAX_DURATION_MS);
+
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) {
+        state.voice.chunks.push(event.data);
+      }
+    });
+
+    recorder.addEventListener("stop", async () => {
+      const blob = buildRecordedAudioBlob();
+      cleanupVoiceResources();
+      if (!blob) {
+        setVoiceStatus("idle");
+        setInlineMessage(elements.voiceMessage, "No audio was captured. Try recording again.", "error");
+        return;
+      }
+
+      await uploadVoiceRecording(blob);
+    });
+
+    recorder.start();
+  } catch (error) {
+    console.error(error);
+    cleanupVoiceResources();
+    setVoiceStatus("idle");
+    setInlineMessage(elements.voiceMessage, resolveMicrophoneError(error), "error");
+  }
+}
+
+function stopVoiceRecording() {
+  if (state.voice.recorder?.state === "recording") {
+    state.voice.recorder.stop();
+  } else {
+    cleanupVoiceResources();
+    setVoiceStatus("idle");
+  }
+}
+
+function cleanupVoiceResources() {
+  if (state.voice.timerIntervalId) {
+    window.clearInterval(state.voice.timerIntervalId);
+    state.voice.timerIntervalId = null;
+  }
+
+  if (state.voice.autoStopTimeoutId) {
+    window.clearTimeout(state.voice.autoStopTimeoutId);
+    state.voice.autoStopTimeoutId = null;
+  }
+
+  if (state.voice.stream) {
+    state.voice.stream.getTracks().forEach((track) => track.stop());
+  }
+
+  state.voice.stream = null;
+  state.voice.recorder = null;
+  state.voice.recordingStartedAt = 0;
+  state.voice.chunks = [];
+}
+
+async function requestMicrophoneStream() {
+  if (navigator.mediaDevices?.getUserMedia) {
+    return navigator.mediaDevices.getUserMedia({ audio: true });
+  }
+
+  const legacyGetUserMedia =
+    navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+  if (!legacyGetUserMedia) {
+    throw new Error("Microphone capture is not available in this browser.");
+  }
+
+  return new Promise((resolve, reject) => {
+    legacyGetUserMedia.call(navigator, { audio: true }, resolve, reject);
+  });
+}
+
+function getSupportedAudioMimeType() {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mp4;codecs=mp4a.40.2",
+  ];
+
+  return candidates.find((type) => window.MediaRecorder?.isTypeSupported?.(type)) || "";
+}
+
+function buildRecordedAudioBlob() {
+  if (!state.voice.chunks.length) return null;
+  const mimeType = state.voice.chunks[0]?.type || getSupportedAudioMimeType() || "audio/webm";
+  return new Blob(state.voice.chunks, { type: mimeType });
+}
+
+async function uploadVoiceRecording(blob) {
+  setVoiceStatus("processing");
+  setInlineMessage(elements.voiceMessage, "", "");
+
+  const formData = new FormData();
+  const extension = blob.type.includes("mp4") ? "mp4" : "webm";
+  const selectedTemplate = getSelectedTemplate();
+  formData.append("audio", blob, `session-summary.${extension}`);
+  formData.append("note_format", elements.form.elements.note_format.value || "SOAP");
+  formData.append("note_template_name", selectedTemplate?.name || "");
+
+  try {
+    const response = await apiRequest("/api/transcribe-and-extract", {
+      method: "POST",
+      body: formData,
+    });
+
+    const extracted = response?.extracted_fields || {};
+    state.voice.transcript = response?.transcript || "";
+    renderVoiceTranscript(state.voice.transcript);
+
+    const populatedFields = applyExtractedFields(extracted);
+    state.voice.populatedFields = populatedFields;
+    renderVoicePopulatedFields(populatedFields);
+
+    if (populatedFields.length) {
+      setVoiceStatus("done");
+      setInlineMessage(elements.voiceMessage, "Form populated from recording.", "success");
+    } else {
+      setVoiceStatus("done");
+      setInlineMessage(
+        elements.voiceMessage,
+        "Transcript is available, but no form fields were extracted. Review manually.",
+        "warning",
+      );
+    }
+
+    persistDraft();
+  } catch (error) {
+    console.error(error);
+    setVoiceStatus("idle");
+    setInlineMessage(
+      elements.voiceMessage,
+      error.message || "Transcription failed. The form was left unchanged.",
+      "error",
+    );
+  }
+}
+
+function applyExtractedFields(extracted) {
+  const populated = [];
+  const interventions = Array.isArray(extracted.interventions_checked)
+    ? normalizeVoiceInterventions(extracted.interventions_checked)
+    : null;
+
+  clearVoiceFieldHighlights();
+
+  VOICE_EXTRACTABLE_FIELDS.forEach((fieldKey) => {
+    if (!(fieldKey in extracted)) return;
+    const value = fieldKey === "interventions_checked" ? interventions : extracted[fieldKey];
+    if (applyExtractedValue(fieldKey, value)) {
+      populated.push(fieldKey);
+    }
+  });
+
+  if (populated.includes("risk_level")) {
+    toggleRiskDetails();
+  }
+
+  populated.forEach(markFieldAsPopulated);
+  clearAllValidationErrors();
+  return populated;
+}
+
+function applyExtractedValue(fieldKey, value) {
+  if (fieldKey === "primary_diagnosis") {
+    const diagnoses = normalizeDiagnoses(value);
+    if (!diagnoses.length) return false;
+    setDiagnoses(diagnoses);
+    return true;
+  }
+
+  if (fieldKey === "interventions_checked") {
+    if (!value || (!value.checked.length && !value.other.length)) return false;
+    const checkboxes = elements.form.querySelectorAll('input[name="interventions_checked"]');
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = value.checked.includes(checkbox.value);
+    });
+    const otherField = elements.form.elements.interventions_other;
+    if (otherField) {
+      otherField.value = value.other.join(", ");
+    }
+    return true;
+  }
+
+  const field = elements.form.elements[fieldKey];
+  if (!field) return false;
+
+  if (field instanceof RadioNodeList) {
+    if (!value) return false;
+    field.value = value;
+    syncCheckedValue(fieldKey, value);
+    return Boolean(field.value);
+  }
+
+  if (value == null) return false;
+  const normalizedValue = Array.isArray(value) ? value.join(", ") : String(value).trim();
+  if (!normalizedValue) return false;
+  field.value = normalizedValue;
+  return true;
+}
+
+function normalizeVoiceInterventions(values) {
+  const checked = new Set();
+  const other = [];
+
+  values.forEach((value) => {
+    const label = String(value || "").trim();
+    if (!label) return;
+    const mapped = VOICE_INTERVENTION_MAP[label];
+    if (Array.isArray(mapped) && mapped.length) {
+      mapped.forEach((item) => checked.add(item));
+      return;
+    }
+
+    other.push(label);
+  });
+
+  return { checked: [...checked], other };
+}
+
+function markFieldAsPopulated(fieldKey) {
+  const container = getFieldContainer(fieldKey);
+  if (container) {
+    container.classList.add("was-populated");
+  }
+}
+
+function clearVoiceFieldHighlights() {
+  elements.form?.querySelectorAll(".was-populated").forEach((node) => {
+    node.classList.remove("was-populated");
+  });
+}
+
+function renderVoiceTranscript(transcript) {
+  if (!elements.voiceTranscriptField || !elements.voiceTranscript) return;
+  const hasTranscript = Boolean(transcript);
+  elements.voiceTranscript.value = transcript || "";
+  elements.voiceTranscriptField.classList.toggle("is-hidden", !hasTranscript);
+}
+
+function renderVoicePopulatedFields(fieldKeys) {
+  if (!elements.voicePopulatedFields || !elements.voicePopulatedList) return;
+  elements.voicePopulatedList.innerHTML = "";
+
+  fieldKeys.forEach((fieldKey) => {
+    const chip = document.createElement("span");
+    chip.className = "voice-chip";
+    chip.textContent = FIELD_LABELS[fieldKey] || fieldKey;
+    elements.voicePopulatedList.appendChild(chip);
+  });
+
+  elements.voicePopulatedFields.classList.toggle("is-hidden", !fieldKeys.length);
+}
+
+function updateVoiceTimer() {
+  if (!elements.voiceTimer) return;
+  const elapsedMs = state.voice.recordingStartedAt ? Date.now() - state.voice.recordingStartedAt : 0;
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  elements.voiceTimer.textContent = `${minutes}:${seconds}`;
+}
+
+function setVoiceStatus(status) {
+  state.voice.status = status;
+  updateVoiceUI();
+}
+
+function updateVoiceUI() {
+  if (!elements.voiceRecorderCard) return;
+
+  const status = state.voice.status;
+  const statusCopy = {
+    idle: {
+      badge: "Optional",
+      button: "Record Session Summary",
+      text: "Ready to record. Your audio is uploaded only after you stop recording.",
+      showRecordingIndicator: false,
+      showProcessingSpinner: false,
+      showEditButton: state.voice.populatedFields.length > 0,
+      timer: "00:00",
+      disabled: false,
+    },
+    recording: {
+      badge: "Recording",
+      button: "Stop Recording",
+      text: "Recording in progress. Speak naturally and include the key session details you want extracted.",
+      showRecordingIndicator: true,
+      showProcessingSpinner: false,
+      showEditButton: false,
+      disabled: false,
+    },
+    processing: {
+      badge: "Processing",
+      button: "Processing...",
+      text: "Transcribing & filling form...",
+      showRecordingIndicator: false,
+      showProcessingSpinner: true,
+      showEditButton: false,
+      disabled: true,
+    },
+    done: {
+      badge: "Done",
+      button: "Record Again",
+      text: state.voice.populatedFields.length
+        ? "Form populated from recording. Review and edit any field before generating."
+        : "Recording processed. Review the transcript and complete any missing fields.",
+      showRecordingIndicator: false,
+      showProcessingSpinner: false,
+      showEditButton: state.voice.populatedFields.length > 0,
+      disabled: false,
+    },
+  }[status];
+
+  elements.voiceRecorderCard.dataset.state = status;
+  if (elements.voiceStatusBadge) elements.voiceStatusBadge.textContent = statusCopy.badge;
+  if (elements.voiceButtonLabel) elements.voiceButtonLabel.textContent = statusCopy.button;
+  if (elements.voiceStatusText) elements.voiceStatusText.textContent = statusCopy.text;
+  if (elements.voiceRecordButton) elements.voiceRecordButton.disabled = statusCopy.disabled;
+  if (elements.voiceRecordingIndicator) {
+    elements.voiceRecordingIndicator.classList.toggle("is-hidden", !statusCopy.showRecordingIndicator);
+  }
+  if (elements.voiceProcessingSpinner) {
+    elements.voiceProcessingSpinner.classList.toggle("is-hidden", !statusCopy.showProcessingSpinner);
+  }
+  if (elements.voiceEditFields) {
+    elements.voiceEditFields.classList.toggle("is-hidden", !statusCopy.showEditButton);
+  }
+  if (status !== "recording" && elements.voiceTimer) {
+    elements.voiceTimer.textContent = statusCopy.timer;
+  }
+}
+
+function resolveMicrophoneError(error) {
+  if (!error) return "Microphone access failed.";
+  if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+    return "Microphone permission was denied. Allow microphone access and try again.";
+  }
+  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+    return "No microphone was found on this device.";
+  }
+  return error.message || "Microphone access failed.";
+}
+
+function resetVoiceAssistant() {
+  cleanupVoiceResources();
+  state.voice.status = "idle";
+  state.voice.transcript = "";
+  state.voice.populatedFields = [];
+  clearVoiceFieldHighlights();
+  renderVoiceTranscript("");
+  renderVoicePopulatedFields([]);
+  clearInlineMessage(elements.voiceMessage);
+  updateVoiceUI();
 }
 
 function ensureUserId() {
@@ -347,6 +845,7 @@ function handleClearForm() {
 function loadDemoData() {
   DEMO_DATA.session_date = formatDateForInput(new Date());
   applyFormData(DEMO_DATA);
+  resetVoiceAssistant();
   enforceTemplateSelection();
   toggleRiskDetails();
   persistDraft();
@@ -801,6 +1300,7 @@ function resetGeneratedState() {
 
 function resetFormToDefaults() {
   elements.form.reset();
+  resetVoiceAssistant();
   setDiagnoses([]);
   setDefaultDate();
   applyDefaultTemplateSelection();
@@ -1038,13 +1538,19 @@ function persistGeneratedNote() {
 }
 
 async function apiRequest(path, options = {}) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers = {
+    "X-User-Id": state.userId,
+    ...(options.headers || {}),
+  };
+
+  if (!isFormData && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(`${BACKEND_URL}${path}`, {
     method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-User-Id": state.userId,
-      ...(options.headers || {}),
-    },
+    headers,
     body: options.body,
   });
 

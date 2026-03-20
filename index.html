@@ -177,6 +177,57 @@
                 </div>
               </section>
 
+              <section class="panel voice-panel" id="voice-panel">
+                <div class="panel-header voice-panel-header">
+                  <div>
+                    <h3>Voice-to-Form</h3>
+                    <p>
+                      Record a quick 2-3 minute session summary. Clarity will
+                      transcribe it and pre-fill the form for review.
+                    </p>
+                  </div>
+                  <div id="voice-status-badge" class="voice-status-badge">Optional</div>
+                </div>
+
+                <div id="voice-recorder-card" class="voice-recorder-card" data-state="idle">
+                  <div class="voice-control-row">
+                    <button id="voice-record-button" class="button button-secondary voice-record-button" type="button">
+                      <span class="voice-button-icon" aria-hidden="true">🎤</span>
+                      <span id="voice-button-label">Record Session Summary</span>
+                    </button>
+                    <div id="voice-timer" class="voice-timer" aria-live="polite">00:00</div>
+                    <button id="voice-edit-fields" class="button button-ghost button-small is-hidden" type="button">
+                      Edit Fields
+                    </button>
+                  </div>
+
+                  <div class="voice-feedback-row">
+                    <div id="voice-recording-indicator" class="voice-recording-indicator is-hidden" aria-hidden="true"></div>
+                    <div id="voice-processing-spinner" class="spinner spinner-small is-hidden" aria-hidden="true"></div>
+                    <p id="voice-status-text" class="voice-status-text">
+                      Ready to record. Your audio is uploaded only after you stop recording.
+                    </p>
+                  </div>
+
+                  <div id="voice-populated-fields" class="voice-populated-fields is-hidden">
+                    <div class="voice-populated-label">Populated fields</div>
+                    <div id="voice-populated-list" class="voice-chip-list"></div>
+                  </div>
+
+                  <label id="voice-transcript-field" class="field field-full voice-transcript-field is-hidden">
+                    <span>Transcript</span>
+                    <textarea
+                      id="voice-transcript"
+                      rows="5"
+                      readonly
+                      placeholder="Transcript will appear here if available."
+                    ></textarea>
+                  </label>
+
+                  <div id="voice-message" class="inline-message" aria-live="polite"></div>
+                </div>
+              </section>
+
               <section class="panel">
                 <div class="panel-header">
                   <h3>Section C · Session Content</h3>
@@ -587,7 +638,7 @@
     </div>
 
     <footer class="compliance-footer">
-      MODPA 2026 Compliant | HIPAA Secure | No Audio Recording Architecture
+      MODPA 2026 Compliant | HIPAA Secure | Audio Uploaded On Demand
     </footer>
 
     <script src="app.js"></script>
