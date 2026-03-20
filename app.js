@@ -117,25 +117,26 @@ function init() {
 }
 
 function bindEvents() {
-  elements.form.addEventListener("submit", handleGenerate);
-  elements.loadDemo.addEventListener("click", loadDemoData);
-  elements.clearForm.addEventListener("click", handleClearForm);
-  elements.copyNote.addEventListener("click", handleCopyNote);
-  elements.regenerateNote.addEventListener("click", handleRegenerate);
-  elements.newNote.addEventListener("click", handleNewNote);
-  elements.backToForm.addEventListener("click", () => showView("form"));
-  elements.submitFeedback.addEventListener("click", handleSubmitFeedback);
-  elements.skipFeedback.addEventListener("click", handleSkipFeedback);
+  const on = (el, event, fn) => el && el.addEventListener(event, fn);
+  on(elements.form, "submit", handleGenerate);
+  on(elements.loadDemo, "click", loadDemoData);
+  on(elements.clearForm, "click", handleClearForm);
+  on(elements.copyNote, "click", handleCopyNote);
+  on(elements.regenerateNote, "click", handleRegenerate);
+  on(elements.newNote, "click", handleNewNote);
+  on(elements.backToForm, "click", () => showView("form"));
+  on(elements.submitFeedback, "click", handleSubmitFeedback);
+  on(elements.skipFeedback, "click", handleSkipFeedback);
 
   elements.feedbackButtons.forEach((button) => {
     button.addEventListener("click", () => {
       state.feedbackSelection = button.dataset.feedbackRating || "";
       syncFeedbackButtons();
-      clearInlineMessage(elements.feedbackMessage);
+      if (elements.feedbackMessage) clearInlineMessage(elements.feedbackMessage);
     });
   });
 
-  elements.form.addEventListener("change", (event) => {
+  on(elements.form, "change", (event) => {
     if (event.target.name === "note_format") {
       syncFormatCaption();
     }
@@ -147,7 +148,7 @@ function bindEvents() {
     persistDraft();
   });
 
-  elements.form.addEventListener("input", () => {
+  on(elements.form, "input", () => {
     persistDraft();
   });
 }
@@ -586,10 +587,11 @@ function buildClipboardOutput(note) {
 }
 
 function toggleRiskDetails() {
+  if (!elements.form) return;
   const riskLevel = elements.form.elements.risk_level.value;
   const shouldShow = riskLevel.startsWith("Moderate") || riskLevel.startsWith("High");
-  elements.riskDetailsField.classList.toggle("is-hidden", !shouldShow);
-  if (!shouldShow) {
+  if (elements.riskDetailsField) elements.riskDetailsField.classList.toggle("is-hidden", !shouldShow);
+  if (!shouldShow && elements.form.elements.risk_details) {
     elements.form.elements.risk_details.value = "";
   }
 }
@@ -618,14 +620,14 @@ function resetFeedbackState() {
 }
 
 function updateFeedbackVisibility(visible) {
-  elements.feedbackPanel.classList.toggle("is-hidden", !visible);
+  if (elements.feedbackPanel) elements.feedbackPanel.classList.toggle("is-hidden", !visible);
 }
 
 function showView(nextView) {
   state.currentView = nextView;
-  elements.formView.classList.toggle("is-hidden", nextView !== "form");
-  elements.loadingView.classList.toggle("is-hidden", nextView !== "loading");
-  elements.noteView.classList.toggle("is-hidden", nextView !== "note");
+  if (elements.formView) elements.formView.classList.toggle("is-hidden", nextView !== "form");
+  if (elements.loadingView) elements.loadingView.classList.toggle("is-hidden", nextView !== "loading");
+  if (elements.noteView) elements.noteView.classList.toggle("is-hidden", nextView !== "note");
 }
 
 function persistDraft() {
