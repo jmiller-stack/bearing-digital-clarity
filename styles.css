@@ -11,6 +11,8 @@
   --accent-deep: #4f6955;
   --accent-pale: #dbe6d6;
   --warning: #8f6f3d;
+  --danger: #a14c4c;
+  --danger-soft: rgba(161, 76, 76, 0.12);
   --shadow: 0 24px 70px rgba(36, 50, 42, 0.08);
   --radius: 22px;
   --radius-small: 14px;
@@ -261,6 +263,7 @@ legend {
 label.field input,
 label.field select,
 label.field textarea,
+.chip-input,
 .embedded-field input,
 .edit-panel textarea {
   width: 100%;
@@ -280,10 +283,32 @@ label.field textarea,
 
 input:focus,
 select:focus,
-textarea:focus {
+textarea:focus,
+.chip-input:focus-within {
   outline: none;
   border-color: rgba(79, 105, 85, 0.5);
   box-shadow: 0 0 0 4px rgba(108, 136, 113, 0.14);
+}
+
+.required-indicator {
+  color: var(--danger);
+}
+
+.field-error {
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.has-error input,
+.has-error select,
+.has-error textarea,
+.chip-input.is-invalid,
+input.is-invalid,
+select.is-invalid,
+textarea.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 4px var(--danger-soft);
 }
 
 fieldset {
@@ -334,6 +359,55 @@ input[type="radio"] {
 .embedded-field {
   margin-top: 14px;
   max-width: 340px;
+}
+
+.chip-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-input input {
+  flex: 1 1 220px;
+  min-width: 160px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chip-input input:focus {
+  border: 0;
+  box-shadow: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(219, 230, 214, 0.9);
+  color: var(--accent-deep);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.chip-remove {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  line-height: 1;
+  font-size: 16px;
 }
 
 .button {
@@ -506,6 +580,10 @@ input[type="radio"] {
   white-space: pre-wrap;
   line-height: 1.8;
   color: var(--text);
+}
+
+.section-copy {
+  min-width: 72px;
 }
 
 .edit-panel {

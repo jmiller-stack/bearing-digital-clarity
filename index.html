@@ -78,15 +78,15 @@
                   </label>
                   <label class="field">
                     <span>Session Number</span>
-                    <input type="number" name="session_number" min="1" step="1" required />
+                    <input type="number" name="session_number" min="1" step="1" />
                   </label>
                   <label class="field">
                     <span>Session Date</span>
-                    <input type="date" name="session_date" required />
+                    <input type="date" name="session_date" />
                   </label>
                   <label class="field">
                     <span>Duration</span>
-                    <select name="duration_minutes" required>
+                    <select name="duration_minutes">
                       <option value="30">30 min</option>
                       <option value="45">45 min</option>
                       <option value="50" selected>50 min</option>
@@ -96,12 +96,16 @@
                   </label>
                   <label class="field">
                     <span>Session Type</span>
-                    <select name="session_type" required>
+                    <select name="session_type">
                       <option value="Individual" selected>Individual</option>
                       <option value="Couple">Couple</option>
                       <option value="Family">Family</option>
                       <option value="Group">Group</option>
                     </select>
+                  </label>
+                  <label class="field">
+                    <span>Note Template</span>
+                    <select id="note-template" name="note_template_id"></select>
                   </label>
                   <fieldset class="field note-format-field">
                     <legend>Note Format</legend>
@@ -121,12 +125,16 @@
                 <div class="field-grid">
                   <label class="field">
                     <span>Primary Diagnosis</span>
-                    <input
-                      type="text"
-                      name="primary_diagnosis"
-                      list="diagnosis-suggestions"
-                      required
-                    />
+                    <input type="hidden" name="primary_diagnosis" />
+                    <div class="chip-input" id="primary-diagnosis-chips" data-field-key="primary_diagnosis">
+                      <div class="chip-list" id="primary-diagnosis-list"></div>
+                      <input
+                        type="text"
+                        id="primary-diagnosis-input"
+                        list="diagnosis-suggestions"
+                        placeholder="Type a diagnosis and press Enter"
+                      />
+                    </div>
                     <datalist id="diagnosis-suggestions">
                       <option value="Major Depressive Disorder"></option>
                       <option value="Generalized Anxiety Disorder"></option>
@@ -144,7 +152,7 @@
                   </label>
                   <label class="field">
                     <span>Treatment Modality</span>
-                    <select name="treatment_modality" required>
+                    <select name="treatment_modality">
                       <option value="CBT" selected>CBT</option>
                       <option value="DBT">DBT</option>
                       <option value="EMDR">EMDR</option>
@@ -507,6 +515,7 @@
           </div>
           <div class="note-card-actions">
             <span class="section-status">Unedited</span>
+            <button class="button button-secondary button-small section-copy" type="button">Copy</button>
             <button class="button button-ghost button-small edit-toggle" type="button">Edit</button>
           </div>
         </div>

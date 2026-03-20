@@ -2,27 +2,42 @@ const BACKEND_URL = window.BACKEND_URL || "https://web-production-d6d7d.up.railw
 const STORAGE_KEYS = {
   draft: "clarity_form_draft_v2",
   note: "clarity_generated_note_v2",
+  userId: "clarity_user_id",
 };
 
-const SECTION_CONFIG = {
-  SOAP: [
-    { key: "subjective", short: "S", title: "Subjective", clipboard: "SUBJECTIVE" },
-    { key: "objective", short: "O", title: "Objective", clipboard: "OBJECTIVE" },
-    { key: "assessment", short: "A", title: "Clinical Summary (Draft)", clipboard: "CLINICAL SUMMARY" },
-    { key: "plan", short: "P", title: "Plan", clipboard: "PLAN" },
-  ],
-  DAP: [
-    { key: "data", short: "D", title: "Data", clipboard: "DATA" },
-    { key: "assessment", short: "A", title: "Clinical Summary (Draft)", clipboard: "CLINICAL SUMMARY" },
-    { key: "plan", short: "P", title: "Plan", clipboard: "PLAN" },
-  ],
-  BIRP: [
-    { key: "behavior", short: "B", title: "Behavior", clipboard: "BEHAVIOR" },
-    { key: "intervention", short: "I", title: "Intervention", clipboard: "INTERVENTION" },
-    { key: "response", short: "R", title: "Response", clipboard: "RESPONSE" },
-    { key: "plan", short: "P", title: "Plan", clipboard: "PLAN" },
-  ],
-};
+const HCC_TEMPLATE_NAME = "HCC SOAP Note";
+const FALLBACK_TEMPLATES = [
+  {
+    id: "builtin-hcc-fallback",
+    name: HCC_TEMPLATE_NAME,
+    is_builtin: true,
+    sections_json: [
+      { key: "subjective_complaint_presenting_problem", short: "1", title: "Subjective Complaint / Presenting Problem", clipboard: "SUBJECTIVE COMPLAINT / PRESENTING PROBLEM" },
+      { key: "objective", short: "2", title: "Objective", clipboard: "OBJECTIVE" },
+      { key: "provider_assessment", short: "3", title: "Provider Assessment", clipboard: "PROVIDER ASSESSMENT" },
+      { key: "clinical_interventions_used", short: "4", title: "Clinical Interventions used", clipboard: "CLINICAL INTERVENTIONS USED" },
+      { key: "clients_response", short: "5", title: "Clients Response", clipboard: "CLIENTS RESPONSE" },
+      { key: "progress_regression_toward_goals", short: "6", title: "Progress/Regression Toward Goals", clipboard: "PROGRESS/REGRESSION TOWARD GOALS" },
+      { key: "insight_and_treatment_recommendations", short: "7", title: "Insight and Treatment Recommendations", clipboard: "INSIGHT AND TREATMENT RECOMMENDATIONS" },
+      { key: "risk_check", short: "8", title: "Risk Check", clipboard: "RISK CHECK" },
+      { key: "plan_recommendations_homework", short: "9", title: "Plan / Recommendations / Homework", clipboard: "PLAN / RECOMMENDATIONS / HOMEWORK" },
+    ],
+  },
+];
+
+const REQUIRED_FIELDS = [
+  { key: "client_name", label: "Client Name" },
+  { key: "client_report", label: "Client Report" },
+  { key: "interventions_description", label: "Interventions Description" },
+  { key: "affect", label: "Affect" },
+  { key: "engagement", label: "Engagement" },
+  { key: "eye_contact", label: "Eye Contact" },
+  { key: "appearance", label: "Appearance" },
+  { key: "speech", label: "Speech" },
+  { key: "thought_process", label: "Thought Process" },
+  { key: "client_response", label: "Client Response" },
+  { key: "plan_next_session", label: "Plan for Next Session" },
+];
 
 const DEMO_DATA = {
   client_name: "Alex R.",
@@ -31,7 +46,8 @@ const DEMO_DATA = {
   duration_minutes: "50",
   session_type: "Individual",
   note_format: "SOAP",
-  primary_diagnosis: "Generalized Anxiety Disorder",
+  note_template_name: HCC_TEMPLATE_NAME,
+  primary_diagnosis: ["Generalized Anxiety Disorder", "Adjustment Disorder"],
   treatment_modality: "CBT",
   treatment_goals:
     "Reduce anxiety symptoms. Improve sleep onset to under 30 min. Develop independent coping skills.",
@@ -74,6 +90,11 @@ const state = {
   feedbackSelection: "",
   feedbackSubmitted: false,
   feedbackPending: false,
+  templates: [],
+  defaultTemplateId: "",
+  diagnoses: [],
+  userId: "",
+  copyResetTimers: new Map(),
 };
 
 const elements = {
@@ -113,17 +134,30 @@ const elements = {
   submitFeedback: document.querySelector("#submit-feedback"),
   skipFeedback: document.querySelector("#skip-feedback"),
   feedbackMessage: document.querySelector("#feedback-message"),
+  noteTemplate: document.querySelector("#note-template"),
+  primaryDiagnosisInput: document.querySelector("#primary-diagnosis-input"),
+  primaryDiagnosisList: document.querySelector("#primary-diagnosis-list"),
+  primaryDiagnosisHidden: document.querySelector('input[name="primary_diagnosis"]'),
+  primaryDiagnosisChips: document.querySelector("#primary-diagnosis-chips"),
 };
 
-init();
+init().catch((error) => {
+  console.error(error);
+  setInlineMessage(elements.formMessage, "Initialization failed. Refresh and try again.", "error");
+});
 
-function init() {
-  setDefaultDate();
-  hydrateFromStorage();
+async function init() {
+  state.userId = ensureUserId();
   bindEvents();
+  setupValidationUI();
+  setDefaultDate();
+  await loadTemplates();
+  hydrateFromStorage();
+  enforceTemplateSelection();
   syncFormatCaption();
   toggleRiskDetails();
   syncFeedbackButtons();
+  syncDiagnosisField();
   if (elements.baaLink) elements.baaLink.href = `${BACKEND_URL}/legal/baa`;
 }
 
@@ -151,6 +185,10 @@ function bindEvents() {
   on(elements.settingsOverlay, "click", (event) => {
     if (event.target === elements.settingsOverlay) closeSettingsModal();
   });
+  on(elements.noteTemplate, "change", () => {
+    enforceTemplateSelection();
+    persistDraft();
+  });
 
   elements.feedbackButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -162,6 +200,7 @@ function bindEvents() {
 
   on(elements.form, "change", (event) => {
     if (event.target.name === "note_format") {
+      enforceTemplateSelection();
       syncFormatCaption();
     }
 
@@ -169,18 +208,100 @@ function bindEvents() {
       toggleRiskDetails();
     }
 
+    clearValidationForTarget(event.target);
     persistDraft();
   });
 
-  on(elements.form, "input", () => {
+  on(elements.form, "input", (event) => {
+    clearValidationForTarget(event.target);
     persistDraft();
+  });
+
+  bindDiagnosisEvents();
+}
+
+function bindDiagnosisEvents() {
+  if (!elements.primaryDiagnosisInput || !elements.primaryDiagnosisChips) return;
+
+  elements.primaryDiagnosisChips.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-remove-diagnosis]");
+    if (removeButton) {
+      removeDiagnosis(removeButton.dataset.removeDiagnosis || "");
+      return;
+    }
+
+    elements.primaryDiagnosisInput.focus();
+  });
+
+  elements.primaryDiagnosisInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      commitDiagnosisInput();
+    }
+  });
+
+  elements.primaryDiagnosisInput.addEventListener("blur", () => {
+    commitDiagnosisInput();
   });
 }
 
-function setDefaultDate() {
-  const dateField = elements.form.elements.session_date;
-  if (!dateField.value) {
-    dateField.value = formatDateForInput(new Date());
+function ensureUserId() {
+  const existing = localStorage.getItem(STORAGE_KEYS.userId);
+  if (existing) return existing;
+  const nextValue = createUuid();
+  localStorage.setItem(STORAGE_KEYS.userId, nextValue);
+  return nextValue;
+}
+
+function createUuid() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = char === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
+async function loadTemplates() {
+  let templates = FALLBACK_TEMPLATES;
+
+  try {
+    const response = await apiRequest("/api/templates");
+    if (Array.isArray(response?.templates) && response.templates.length) {
+      templates = response.templates;
+    }
+  } catch (error) {
+    console.error("Template load failed:", error);
+  }
+
+  state.templates = templates;
+  renderTemplateOptions();
+}
+
+function renderTemplateOptions() {
+  if (!elements.noteTemplate) return;
+
+  const previousValue = elements.noteTemplate.value;
+  elements.noteTemplate.innerHTML = "";
+
+  state.templates.forEach((template) => {
+    const option = document.createElement("option");
+    option.value = String(template.id);
+    option.textContent = template.name;
+    option.dataset.templateName = template.name;
+    elements.noteTemplate.appendChild(option);
+  });
+
+  const defaultTemplate = state.templates.find((template) => template.name === HCC_TEMPLATE_NAME) || state.templates[0];
+  state.defaultTemplateId = defaultTemplate ? String(defaultTemplate.id) : "";
+
+  if (previousValue && state.templates.some((template) => String(template.id) === previousValue)) {
+    elements.noteTemplate.value = previousValue;
+  } else if (state.defaultTemplateId) {
+    elements.noteTemplate.value = state.defaultTemplateId;
   }
 }
 
@@ -188,52 +309,56 @@ function hydrateFromStorage() {
   const savedDraft = safelyParseJSON(localStorage.getItem(STORAGE_KEYS.draft));
   if (savedDraft) {
     applyFormData(savedDraft);
+  } else {
+    applyDefaultTemplateSelection();
   }
 
   const savedNote = safelyParseJSON(localStorage.getItem(STORAGE_KEYS.note));
   if (savedNote && savedNote.request && savedNote.response && savedNote.noteId) {
     state.latestRequest = savedNote.request;
-    state.generatedNote = savedNote.response;
+    state.generatedNote = normalizeSavedNote(savedNote.response);
     state.currentNoteId = savedNote.noteId;
     state.feedbackSubmitted = Boolean(savedNote.feedbackSubmitted);
     state.feedbackPending = Boolean(savedNote.feedbackPending);
-    renderGeneratedNote(savedNote.response);
+    renderGeneratedNote(state.generatedNote);
     updateFeedbackVisibility(state.feedbackPending);
     showView("note");
   }
 }
 
+function normalizeSavedNote(note) {
+  return {
+    format: note.format,
+    templateName: note.templateName || note.template_name || note.metadata?.template_name || "",
+    metadata: note.metadata,
+    sections: Array.isArray(note.sections) ? note.sections : [],
+  };
+}
+
 function handleClearForm() {
-  elements.form.reset();
-  setDefaultDate();
-  elements.form.elements.duration_minutes.value = "50";
-  elements.form.elements.session_type.value = "Individual";
-  elements.form.elements.treatment_modality.value = "CBT";
-  elements.form.elements.note_format.value = "SOAP";
-  elements.form.elements.progress.value = "Some progress";
-  elements.form.elements.risk_level.value = "No risk indicators";
-  syncCheckedValue("note_format", "SOAP");
-  syncCheckedValue("progress", "Some progress");
-  syncCheckedValue("risk_level", "No risk indicators");
-  toggleRiskDetails();
-  syncFormatCaption();
-  clearInlineMessage(elements.formMessage);
-  localStorage.removeItem(STORAGE_KEYS.draft);
-  if (elements.attestCheckbox) elements.attestCheckbox.checked = false;
-  if (elements.generateButton) elements.generateButton.disabled = true;
+  resetFormToDefaults();
 }
 
 function loadDemoData() {
   DEMO_DATA.session_date = formatDateForInput(new Date());
   applyFormData(DEMO_DATA);
-  syncFormatCaption();
+  enforceTemplateSelection();
   toggleRiskDetails();
   persistDraft();
+  clearAllValidationErrors();
   setInlineMessage(elements.formMessage, "Demo session loaded.", "success");
 }
 
 function applyFormData(data) {
-  Object.entries(data).forEach(([key, value]) => {
+  const nextData = { ...data };
+  const selectedTemplate = resolveTemplateValue(nextData.note_template_id, nextData.note_template_name);
+  if (selectedTemplate) {
+    elements.noteTemplate.value = String(selectedTemplate.id);
+  } else {
+    applyDefaultTemplateSelection();
+  }
+
+  Object.entries(nextData).forEach(([key, value]) => {
     if (key === "interventions_checked" && Array.isArray(value)) {
       const checkboxes = elements.form.querySelectorAll('input[name="interventions_checked"]');
       checkboxes.forEach((checkbox) => {
@@ -242,10 +367,17 @@ function applyFormData(data) {
       return;
     }
 
-    const field = elements.form.elements[key];
-    if (!field) {
+    if (key === "primary_diagnosis") {
+      setDiagnoses(value);
       return;
     }
+
+    if (key === "note_template_id" || key === "note_template_name") {
+      return;
+    }
+
+    const field = elements.form.elements[key];
+    if (!field) return;
 
     if (field instanceof RadioNodeList) {
       field.value = value;
@@ -255,6 +387,81 @@ function applyFormData(data) {
 
     field.value = value;
   });
+
+  enforceTemplateSelection();
+  syncDiagnosisField();
+}
+
+function resolveTemplateValue(templateId, templateName) {
+  if (templateId && state.templates.some((template) => String(template.id) === String(templateId))) {
+    return state.templates.find((template) => String(template.id) === String(templateId));
+  }
+
+  if (templateName) {
+    return state.templates.find((template) => template.name === templateName) || null;
+  }
+
+  return null;
+}
+
+function applyDefaultTemplateSelection() {
+  if (elements.noteTemplate && state.defaultTemplateId) {
+    elements.noteTemplate.value = state.defaultTemplateId;
+  }
+}
+
+function setDiagnoses(value) {
+  state.diagnoses = normalizeDiagnoses(value);
+  renderDiagnosisChips();
+  syncDiagnosisField();
+  clearFieldError("primary_diagnosis");
+}
+
+function normalizeDiagnoses(value) {
+  const rawValues = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  return rawValues
+    .map((item) => String(item).trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function renderDiagnosisChips() {
+  if (!elements.primaryDiagnosisList) return;
+  elements.primaryDiagnosisList.innerHTML = "";
+
+  state.diagnoses.forEach((diagnosis) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.innerHTML = `
+      <span>${escapeHtml(diagnosis)}</span>
+      <button type="button" class="chip-remove" data-remove-diagnosis="${escapeAttribute(diagnosis)}" aria-label="Remove ${escapeAttribute(diagnosis)}">×</button>
+    `;
+    elements.primaryDiagnosisList.appendChild(chip);
+  });
+}
+
+function syncDiagnosisField() {
+  if (elements.primaryDiagnosisHidden) {
+    elements.primaryDiagnosisHidden.value = JSON.stringify(state.diagnoses);
+  }
+}
+
+function commitDiagnosisInput() {
+  if (!elements.primaryDiagnosisInput) return;
+  const nextValue = elements.primaryDiagnosisInput.value.trim().replace(/,+$/, "");
+  if (!nextValue) {
+    elements.primaryDiagnosisInput.value = "";
+    return;
+  }
+
+  setDiagnoses([...state.diagnoses, nextValue]);
+  elements.primaryDiagnosisInput.value = "";
+  persistDraft();
+}
+
+function removeDiagnosis(diagnosis) {
+  setDiagnoses(state.diagnoses.filter((item) => item !== diagnosis));
+  persistDraft();
 }
 
 function syncCheckedValue(name, value) {
@@ -266,6 +473,7 @@ function syncCheckedValue(name, value) {
 
 function collectFormData() {
   const formData = new FormData(elements.form);
+  const selectedTemplate = getSelectedTemplate();
   const payload = {
     client_name: formData.get("client_name")?.trim() || "",
     session_number: formData.get("session_number")?.trim() || "",
@@ -273,7 +481,9 @@ function collectFormData() {
     duration_minutes: formData.get("duration_minutes") || "50",
     session_type: formData.get("session_type") || "Individual",
     note_format: formData.get("note_format") || "SOAP",
-    primary_diagnosis: formData.get("primary_diagnosis")?.trim() || "",
+    note_template_id: selectedTemplate ? Number(selectedTemplate.id) : null,
+    note_template_name: selectedTemplate?.name || "",
+    primary_diagnosis: [...state.diagnoses],
     treatment_modality: formData.get("treatment_modality") || "CBT",
     treatment_goals: formData.get("treatment_goals")?.trim() || "",
     client_report: formData.get("client_report")?.trim() || "",
@@ -304,37 +514,32 @@ function collectFormData() {
 }
 
 function validateForm(payload) {
-  const requiredFields = [
-    ["client_name", "Client name or initials"],
-    ["session_number", "Session number"],
-    ["session_date", "Session date"],
-    ["primary_diagnosis", "Primary diagnosis"],
-    ["client_report", "Client report"],
-    ["interventions_description", "Interventions description"],
-    ["affect", "Affect"],
-    ["engagement", "Engagement"],
-    ["eye_contact", "Eye contact"],
-    ["appearance", "Appearance"],
-    ["speech", "Speech"],
-    ["thought_process", "Thought process"],
-    ["client_response", "Client response"],
-    ["plan_next_session", "Plan for next session"],
-  ];
+  clearAllValidationErrors();
+  let firstInvalid = null;
 
-  const missing = requiredFields.find(([key]) => !payload[key]);
-  if (missing) {
-    return `Complete "${missing[1]}" before generating the note.`;
-  }
+  REQUIRED_FIELDS.forEach((fieldConfig) => {
+    const value = payload[fieldConfig.key];
+    if (value) return;
+    showFieldError(fieldConfig.key, `${fieldConfig.label} is required.`);
+    firstInvalid ||= fieldConfig.key;
+  });
 
   if (!payload.interventions_checked.length) {
-    return "Select at least one intervention or enter one in the Other field.";
+    setInlineMessage(elements.formMessage, "Select at least one intervention or enter one in the Other field.", "error");
+    firstInvalid ||= "interventions_description";
   }
 
   if (
     (payload.risk_level.startsWith("Moderate") || payload.risk_level.startsWith("High")) &&
     !payload.risk_details
   ) {
-    return "Add risk details for moderate or high risk sessions.";
+    showFieldError("risk_details", "Risk details are required for moderate or high risk sessions.");
+    firstInvalid ||= "risk_details";
+  }
+
+  if (firstInvalid) {
+    focusField(firstInvalid);
+    return "Please correct the highlighted fields.";
   }
 
   return "";
@@ -348,13 +553,15 @@ async function handleGenerate(event) {
   const payload = collectFormData();
   const validationMessage = validateForm(payload);
   if (validationMessage) {
-    setInlineMessage(elements.formMessage, validationMessage, "error");
+    if (!elements.formMessage.textContent) {
+      setInlineMessage(elements.formMessage, validationMessage, "error");
+    }
     return;
   }
 
   state.latestRequest = payload;
   persistDraft();
-  showLoading(payload.note_format);
+  showLoading(payload.note_template_name || payload.note_format);
 
   try {
     const response = await apiRequest("/api/generate-note", {
@@ -365,6 +572,7 @@ async function handleGenerate(event) {
     state.currentNoteId = response.note_id;
     state.generatedNote = {
       format: response.format,
+      templateName: response.template_name || payload.note_template_name,
       metadata: response.metadata,
       sections: response.sections,
     };
@@ -383,30 +591,33 @@ async function handleGenerate(event) {
   }
 }
 
-function showLoading(noteFormat) {
-  elements.loadingTitle.textContent = `Generating your ${noteFormat} note...`;
+function showLoading(label) {
+  elements.loadingTitle.textContent = `Generating your ${label} note...`;
   showView("loading");
 }
 
 function renderGeneratedNote(note) {
-  elements.noteTitle.textContent = `${note.format} Progress Note`;
-  elements.noteMetadata.textContent = [
-    `Client: ${note.metadata.client_name}`,
-    `Session #${note.metadata.session_number}`,
-    formatDateLong(note.metadata.session_date),
-    `${note.metadata.duration_minutes} min`,
-    note.metadata.session_type,
-  ].join("  |  ");
-  elements.noteDiagnosis.textContent = `Diagnosis: ${note.metadata.diagnosis} · Modality: ${note.metadata.modality}`;
+  const title = note.templateName || `${note.format} Progress Note`;
+  const metadataParts = [
+    note.metadata.client_name ? `Client: ${note.metadata.client_name}` : "",
+    note.metadata.session_number ? `Session #${note.metadata.session_number}` : "",
+    note.metadata.session_date ? formatDateLong(note.metadata.session_date) : "",
+    note.metadata.duration_minutes ? `${note.metadata.duration_minutes} min` : "",
+    note.metadata.session_type || "",
+  ].filter(Boolean);
+
+  elements.noteTitle.textContent = title;
+  elements.noteMetadata.textContent = metadataParts.join("  |  ");
+  elements.noteDiagnosis.textContent = `Diagnoses: ${note.metadata.diagnosis} · Modality: ${note.metadata.modality || "Not specified"}`;
 
   elements.noteSections.innerHTML = "";
   note.sections.forEach((section, index) => {
     const fragment = elements.noteCardTemplate.content.cloneNode(true);
-    const card = fragment.querySelector(".note-card");
     const label = fragment.querySelector(".note-card-label");
-    const title = fragment.querySelector(".note-card-title");
+    const titleEl = fragment.querySelector(".note-card-title");
     const status = fragment.querySelector(".section-status");
     const content = fragment.querySelector(".note-card-content");
+    const sectionCopy = fragment.querySelector(".section-copy");
     const editToggle = fragment.querySelector(".edit-toggle");
     const editPanel = fragment.querySelector(".edit-panel");
     const textarea = fragment.querySelector("textarea");
@@ -415,11 +626,30 @@ function renderGeneratedNote(note) {
     const cardMessage = fragment.querySelector(".section-message");
 
     label.textContent = `${section.short} — ${section.title}`;
-    title.textContent = section.title;
+    titleEl.textContent = section.title;
     status.textContent = section.edited ? "Edited" : "Unedited";
     status.classList.toggle("edited", section.edited);
     content.textContent = section.content;
     textarea.value = section.content;
+
+    sectionCopy.addEventListener("click", async () => {
+      const timerKey = `${section.key}-${index}`;
+      try {
+        await navigator.clipboard.writeText(section.content);
+        sectionCopy.textContent = "Copied!";
+        window.clearTimeout(state.copyResetTimers.get(timerKey));
+        state.copyResetTimers.set(
+          timerKey,
+          window.setTimeout(() => {
+            sectionCopy.textContent = "Copy";
+            state.copyResetTimers.delete(timerKey);
+          }, 2000),
+        );
+      } catch (error) {
+        console.error(error);
+        setInlineMessage(cardMessage, "Section copy failed.", "error");
+      }
+    });
 
     editToggle.addEventListener("click", () => {
       editPanel.classList.toggle("is-hidden");
@@ -432,9 +662,7 @@ function renderGeneratedNote(note) {
 
     saveEdit.addEventListener("click", async () => {
       const nextValue = textarea.value.trim();
-      if (!nextValue || !state.generatedNote || !state.currentNoteId) {
-        return;
-      }
+      if (!nextValue || !state.generatedNote || !state.currentNoteId) return;
 
       const previousValue = state.generatedNote.sections[index].content;
       if (previousValue === nextValue) {
@@ -472,15 +700,12 @@ function renderGeneratedNote(note) {
       clearInlineMessage(cardMessage);
     });
 
-    card.dataset.sectionKey = section.key;
     elements.noteSections.appendChild(fragment);
   });
 }
 
 async function handleCopyNote() {
-  if (!state.generatedNote || !state.currentNoteId) {
-    return;
-  }
+  if (!state.generatedNote || !state.currentNoteId) return;
 
   const finalOutput = buildClipboardOutput(state.generatedNote);
 
@@ -507,7 +732,7 @@ async function handleRegenerate() {
   }
 
   clearInlineMessage(elements.copyStatus);
-  showLoading(state.latestRequest.note_format);
+  showLoading(state.latestRequest.note_template_name || state.latestRequest.note_format);
 
   try {
     const response = await apiRequest("/api/generate-note", {
@@ -518,6 +743,7 @@ async function handleRegenerate() {
     state.currentNoteId = response.note_id;
     state.generatedNote = {
       format: response.format,
+      templateName: response.template_name || state.latestRequest.note_template_name,
       metadata: response.metadata,
       sections: response.sections,
     };
@@ -537,30 +763,26 @@ async function handleRegenerate() {
 }
 
 function handleNewNote() {
-  state.generatedNote = null;
-  state.currentNoteId = null;
-  state.feedbackSubmitted = false;
-  state.feedbackPending = false;
-  resetFeedbackState();
-  localStorage.removeItem(STORAGE_KEYS.note);
-  clearInlineMessage(elements.copyStatus);
-  elements.noteSections.innerHTML = "";
+  resetGeneratedState();
+  resetFormToDefaults();
   showView("form");
 }
 
 async function handleFinalizePurge() {
-  if (!state.currentNoteId) {
-    localStorage.removeItem(STORAGE_KEYS.note);
-    showView("form");
-    return;
+  if (state.currentNoteId) {
+    try {
+      await apiRequest(`/api/notes/${state.currentNoteId}/purge`, { method: "DELETE" });
+    } catch (error) {
+      console.error("Purge failed:", error);
+    }
   }
 
-  try {
-    await apiRequest(`/api/notes/${state.currentNoteId}/purge`, { method: "DELETE" });
-  } catch (error) {
-    console.error("Purge failed:", error);
-  }
+  resetGeneratedState();
+  resetFormToDefaults();
+  showView("form");
+}
 
+function resetGeneratedState() {
   state.generatedNote = null;
   state.currentNoteId = null;
   state.latestRequest = null;
@@ -568,17 +790,37 @@ async function handleFinalizePurge() {
   state.feedbackPending = false;
   resetFeedbackState();
   localStorage.removeItem(STORAGE_KEYS.note);
-  localStorage.removeItem(STORAGE_KEYS.draft);
   elements.noteSections.innerHTML = "";
+  clearInlineMessage(elements.copyStatus);
+}
+
+function resetFormToDefaults() {
+  elements.form.reset();
+  setDiagnoses([]);
+  setDefaultDate();
+  applyDefaultTemplateSelection();
+  elements.form.elements.duration_minutes.value = "50";
+  elements.form.elements.session_type.value = "Individual";
+  elements.form.elements.treatment_modality.value = "CBT";
+  elements.form.elements.note_format.value = "SOAP";
+  elements.form.elements.progress.value = "Some progress";
+  elements.form.elements.risk_level.value = "No risk indicators";
+  syncCheckedValue("note_format", "SOAP");
+  syncCheckedValue("progress", "Some progress");
+  syncCheckedValue("risk_level", "No risk indicators");
+  if (elements.primaryDiagnosisInput) elements.primaryDiagnosisInput.value = "";
   if (elements.attestCheckbox) elements.attestCheckbox.checked = false;
   if (elements.generateButton) elements.generateButton.disabled = true;
-  showView("form");
+  clearInlineMessage(elements.formMessage);
+  clearAllValidationErrors();
+  toggleRiskDetails();
+  enforceTemplateSelection();
+  syncFormatCaption();
+  localStorage.removeItem(STORAGE_KEYS.draft);
 }
 
 async function handleSubmitFeedback() {
-  if (!state.currentNoteId) {
-    return;
-  }
+  if (!state.currentNoteId) return;
 
   if (!state.feedbackSelection) {
     setInlineMessage(elements.feedbackMessage, "Choose a feedback rating first.", "error");
@@ -651,7 +893,7 @@ async function handleRequestData() {
 
 async function handleDeleteData() {
   const confirmed = window.confirm(
-    "Are you sure? This will permanently delete all your Clarity data and cannot be undone."
+    "Are you sure? This will permanently delete all your Clarity data and cannot be undone.",
   );
   if (!confirmed) return;
 
@@ -664,21 +906,15 @@ async function handleDeleteData() {
     setInlineMessage(
       elements.settingsMessage,
       `Done. ${count} session record${count !== 1 ? "s" : ""} permanently deleted.`,
-      "success"
+      "success",
     );
-    // Clear local state and storage as well
-    state.generatedNote = null;
-    state.currentNoteId = null;
-    state.latestRequest = null;
-    state.feedbackSubmitted = false;
-    state.feedbackPending = false;
-    localStorage.removeItem(STORAGE_KEYS.note);
-    localStorage.removeItem(STORAGE_KEYS.draft);
-    if (elements.attestCheckbox) elements.attestCheckbox.checked = false;
-    if (elements.generateButton) elements.generateButton.disabled = true;
+    resetGeneratedState();
+    resetFormToDefaults();
+    showView("form");
   } catch (error) {
     console.error(error);
     setInlineMessage(elements.settingsMessage, error.message || "Deletion failed. Try again.", "error");
+  } finally {
     if (elements.deleteData) elements.deleteData.disabled = false;
   }
 }
@@ -687,11 +923,16 @@ function buildClipboardOutput(note) {
   const lines = [
     "PROGRESS NOTE - DRAFT",
     `Client: ${note.metadata.client_name}`,
-    `Session #${note.metadata.session_number} | ${formatDateLong(note.metadata.session_date)} | ${note.metadata.duration_minutes} minutes | ${note.metadata.session_type}`,
-    `Diagnosis: ${note.metadata.diagnosis}`,
-    `Modality: ${note.metadata.modality}`,
-    "",
+    `Session #${note.metadata.session_number || ""} | ${note.metadata.session_date ? formatDateLong(note.metadata.session_date) : ""} | ${note.metadata.duration_minutes || ""} minutes | ${note.metadata.session_type || ""}`,
+    `Diagnoses: ${note.metadata.diagnosis}`,
+    `Modality: ${note.metadata.modality || "Not specified"}`,
   ];
+
+  if (note.templateName) {
+    lines.push(`Template: ${note.templateName}`);
+  }
+
+  lines.push("");
 
   note.sections.forEach((section) => {
     lines.push(`${section.clipboard}:`);
@@ -711,12 +952,32 @@ function toggleRiskDetails() {
   if (elements.riskDetailsField) elements.riskDetailsField.classList.toggle("is-hidden", !shouldShow);
   if (!shouldShow && elements.form.elements.risk_details) {
     elements.form.elements.risk_details.value = "";
+    clearFieldError("risk_details");
   }
+}
+
+function enforceTemplateSelection() {
+  const selectedTemplate = getSelectedTemplate();
+  if (!selectedTemplate) return;
+
+  if (selectedTemplate.name === HCC_TEMPLATE_NAME) {
+    elements.form.elements.note_format.value = "SOAP";
+    syncCheckedValue("note_format", "SOAP");
+  }
+
+  syncFormatCaption();
+}
+
+function getSelectedTemplate() {
+  if (!elements.noteTemplate) return null;
+  return state.templates.find((template) => String(template.id) === elements.noteTemplate.value) || null;
 }
 
 function syncFormatCaption() {
   const format = elements.form.elements.note_format.value || "SOAP";
-  elements.generateCaption.textContent = `Note format: ${format} · Estimated generation time: 15-20 seconds`;
+  const template = getSelectedTemplate();
+  const templateLabel = template?.name || HCC_TEMPLATE_NAME;
+  elements.generateCaption.textContent = `Template: ${templateLabel} · Note format: ${format} · Estimated generation time: 15-20 seconds`;
 }
 
 function syncFeedbackButtons() {
@@ -753,9 +1014,7 @@ function persistDraft() {
 }
 
 function persistGeneratedNote() {
-  if (!state.generatedNote || !state.latestRequest || !state.currentNoteId) {
-    return;
-  }
+  if (!state.generatedNote || !state.latestRequest || !state.currentNoteId) return;
 
   localStorage.setItem(
     STORAGE_KEYS.note,
@@ -774,6 +1033,7 @@ async function apiRequest(path, options = {}) {
     method: options.method || "GET",
     headers: {
       "Content-Type": "application/json",
+      "X-User-Id": state.userId,
       ...(options.headers || {}),
     },
     body: options.body,
@@ -790,12 +1050,103 @@ async function apiRequest(path, options = {}) {
   return parsed;
 }
 
+function setupValidationUI() {
+  REQUIRED_FIELDS.forEach(({ key }) => {
+    const container = getFieldContainer(key);
+    if (!container) return;
+    container.dataset.fieldKey = key;
+    ensureFieldErrorElement(container);
+    decorateRequiredLabel(container);
+  });
+
+  const riskDetailsContainer = getFieldContainer("risk_details");
+  if (riskDetailsContainer) {
+    riskDetailsContainer.dataset.fieldKey = "risk_details";
+    ensureFieldErrorElement(riskDetailsContainer);
+  }
+}
+
+function decorateRequiredLabel(container) {
+  const label = container.querySelector(":scope > span, :scope > legend");
+  if (!label || label.querySelector(".required-indicator")) return;
+  const indicator = document.createElement("span");
+  indicator.className = "required-indicator";
+  indicator.textContent = " *";
+  label.appendChild(indicator);
+}
+
+function ensureFieldErrorElement(container) {
+  let errorElement = container.querySelector(":scope > .field-error");
+  if (!errorElement) {
+    errorElement = document.createElement("div");
+    errorElement.className = "field-error";
+    container.appendChild(errorElement);
+  }
+  return errorElement;
+}
+
+function getFieldContainer(fieldKey) {
+  if (fieldKey === "primary_diagnosis") {
+    return elements.primaryDiagnosisChips?.closest(".field") || null;
+  }
+
+  const field = elements.form?.elements[fieldKey];
+  if (!field) return null;
+  if (field instanceof RadioNodeList) {
+    return elements.form.querySelector(`[name="${fieldKey}"]`)?.closest(".field") || null;
+  }
+  return field.closest(".field");
+}
+
+function getFieldControl(fieldKey) {
+  if (fieldKey === "primary_diagnosis") return elements.primaryDiagnosisChips;
+  return elements.form?.elements[fieldKey] || null;
+}
+
+function showFieldError(fieldKey, message) {
+  const container = getFieldContainer(fieldKey);
+  const control = getFieldControl(fieldKey);
+  if (!container) return;
+  container.classList.add("has-error");
+  control?.classList?.add("is-invalid");
+  ensureFieldErrorElement(container).textContent = message;
+}
+
+function clearFieldError(fieldKey) {
+  const container = getFieldContainer(fieldKey);
+  const control = getFieldControl(fieldKey);
+  if (!container) return;
+  container.classList.remove("has-error");
+  control?.classList?.remove("is-invalid");
+  const errorElement = container.querySelector(":scope > .field-error");
+  if (errorElement) errorElement.textContent = "";
+}
+
+function clearAllValidationErrors() {
+  REQUIRED_FIELDS.forEach(({ key }) => clearFieldError(key));
+  clearFieldError("risk_details");
+}
+
+function clearValidationForTarget(target) {
+  if (!target) return;
+  const name = target.name;
+  if (name) {
+    clearFieldError(name);
+  }
+}
+
+function focusField(fieldKey) {
+  const control = getFieldControl(fieldKey);
+  const target = control instanceof RadioNodeList ? control[0] : control;
+  target?.focus?.();
+  target?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+}
+
 function setInlineMessage(element, message, type) {
+  if (!element) return;
   element.textContent = message;
   element.classList.remove("success", "error");
-  if (type) {
-    element.classList.add(type);
-  }
+  if (type) element.classList.add(type);
 }
 
 function clearInlineMessage(element) {
@@ -803,14 +1154,19 @@ function clearInlineMessage(element) {
 }
 
 function safelyParseJSON(value) {
-  if (!value) {
-    return null;
-  }
+  if (!value) return null;
 
   try {
     return JSON.parse(value);
   } catch (error) {
     return null;
+  }
+}
+
+function setDefaultDate() {
+  const dateField = elements.form.elements.session_date;
+  if (!dateField.value) {
+    dateField.value = formatDateForInput(new Date());
   }
 }
 
@@ -830,4 +1186,17 @@ function formatDateLong(input) {
 
 function normalizeAmpersands(value) {
   return value.replace(/&amp;/g, "&");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replaceAll("`", "&#96;");
 }
