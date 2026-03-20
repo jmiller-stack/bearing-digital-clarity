@@ -610,10 +610,10 @@ function resetFeedbackState() {
   state.feedbackSelection = "";
   state.feedbackSubmitted = false;
   state.feedbackPending = false;
-  elements.feedbackNotes.value = "";
-  elements.submitFeedback.disabled = false;
+  if (elements.feedbackNotes) elements.feedbackNotes.value = "";
+  if (elements.submitFeedback) elements.submitFeedback.disabled = false;
   syncFeedbackButtons();
-  clearInlineMessage(elements.feedbackMessage);
+  if (elements.feedbackMessage) clearInlineMessage(elements.feedbackMessage);
   updateFeedbackVisibility(false);
 }
 
