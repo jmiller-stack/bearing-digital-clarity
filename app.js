@@ -1,7 +1,7 @@
-const WORKER_URL = "https://openrouter-proxy.bearingdigital.workers.dev";
+const BACKEND_URL = window.BACKEND_URL || "https://web-production-d6d7d.up.railway.app";
 const STORAGE_KEYS = {
-  draft: "clarity_form_draft_v1",
-  note: "clarity_generated_note_v1",
+  draft: "clarity_form_draft_v2",
+  note: "clarity_generated_note_v2",
 };
 
 const SECTION_CONFIG = {
@@ -24,75 +24,6 @@ const SECTION_CONFIG = {
   ],
 };
 
-const SYSTEM_PROMPTS = {
-  SOAP: `You are a clinical documentation assistant working with a licensed therapist (LCSW-C). Generate a SOAP progress note from the structured session data provided by the therapist.
-
-RULES:
-- Write in professional clinical language appropriate for a medical record.
-- Use third person: "Client reports...", "Client denies...", "Client was observed to...".
-- Include specific details from the therapist's input. Do not generalize or fabricate.
-- Include the ICD-10 code for the diagnosis if you can identify it.
-- Reference treatment goals if provided.
-- Note session continuity by referencing session number when clinically relevant.
-
-SECTION GUIDELINES:
-- Subjective: client self-report, symptom changes, homework completion, reported mood/affect, significant quotes or statements, and denial of SI/HI when risk level is low or none.
-- Objective: therapist observations mapped from the structured data including affect, engagement, eye contact, appearance, speech, thought process, and any skills or behaviors observed in session.
-- Assessment: clinical interpretation of the session, exact reported progress level, treatment response, diagnostic consistency, emerging themes, and risk assessment.
-- Plan: next session focus, homework assigned, interventions to continue or introduce, frequency, and next appointment if noted.
-
-OUTPUT FORMAT:
-Return only a valid JSON object with exactly four keys: "subjective", "objective", "assessment", and "plan".
-Each value must be a string of 3-6 sentences of professional clinical prose.
-No markdown. No code fences. No extra text outside the JSON.
-
-IMPORTANT:
-This is a draft for clinician review and approval.`,
-  DAP: `You are a clinical documentation assistant working with a licensed therapist (LCSW-C). Generate a DAP progress note from the structured session data provided by the therapist.
-
-RULES:
-- Write in professional clinical language appropriate for a medical record.
-- Use third person and stay specific to the provided details.
-- Do not fabricate facts or add information that was not supplied.
-- Include the ICD-10 code for the diagnosis if you can identify it.
-- Reference treatment goals if provided and note session continuity when clinically relevant.
-
-SECTION GUIDELINES:
-- Data: combine client report, therapist observations, interventions used, and response to interventions into a cohesive factual account of the session.
-- Assessment: provide clinical interpretation, exact reported progress level, diagnostic consistency, treatment response, and risk assessment.
-- Plan: outline next session focus, homework, interventions to continue or introduce, frequency, and next appointment if provided.
-
-OUTPUT FORMAT:
-Return only a valid JSON object with exactly three keys: "data", "assessment", and "plan".
-Each value must be a string of 3-6 sentences of professional clinical prose.
-No markdown. No code fences. No extra text outside the JSON.
-
-IMPORTANT:
-This is a draft for clinician review and approval.`,
-  BIRP: `You are a clinical documentation assistant working with a licensed therapist (LCSW-C). Generate a BIRP progress note from the structured session data provided by the therapist.
-
-RULES:
-- Write in professional clinical language appropriate for a medical record.
-- Use third person and remain grounded in the therapist's structured input.
-- Do not fabricate facts or add unsupported clinical detail.
-- Include the ICD-10 code for the diagnosis if you can identify it.
-- Reference treatment goals if provided and note session continuity when clinically relevant.
-
-SECTION GUIDELINES:
-- Behavior: summarize the client's presentation, symptoms, self-report, and observable behavior.
-- Intervention: describe what the therapist did in session, using the selected interventions and description.
-- Response: capture how the client responded to the interventions, treatment engagement, progress, and risk considerations.
-- Plan: cover next session focus, homework, follow-up, and next appointment details if available.
-
-OUTPUT FORMAT:
-Return only a valid JSON object with exactly four keys: "behavior", "intervention", "response", and "plan".
-Each value must be a string of 3-6 sentences of professional clinical prose.
-No markdown. No code fences. No extra text outside the JSON.
-
-IMPORTANT:
-This is a draft for clinician review and approval.`,
-};
-
 const DEMO_DATA = {
   client_name: "Alex R.",
   session_number: "5",
@@ -105,7 +36,7 @@ const DEMO_DATA = {
   treatment_goals:
     "Reduce anxiety symptoms. Improve sleep onset to under 30 min. Develop independent coping skills.",
   client_report:
-    'Client reported that breathing exercises from last session have been helpful. Said he used the 4-7-8 technique twice this week during anxiety spikes at work and it helped. Reports only 2 panic-like episodes this week, down from 5 last week. Sleep is slightly better — falling asleep in about an hour instead of two. Says he still struggles with catastrophic thinking about work performance but is "starting to catch it."',
+    'Client reported that breathing exercises from last session have been helpful. Said he used the 4-7-8 technique twice this week during anxiety spikes at work and it helped. Reports only 2 panic-like episodes this week, down from 5 last week. Sleep is slightly better - falling asleep in about an hour instead of two. Says he still struggles with catastrophic thinking about work performance but is "starting to catch it."',
   interventions_checked: [
     "Cognitive restructuring",
     "Relaxation / breathing",
@@ -124,21 +55,25 @@ const DEMO_DATA = {
   additional_observations:
     "Client appeared more relaxed than previous sessions. Smiled several times when discussing progress.",
   client_response:
-    `Client responded well to cognitive restructuring exercise. Expressed surprise at being able to reframe his thoughts. Said "I didn't realize how much I was catastrophizing." Showed genuine engagement with worry scheduling concept.`,
+    'Client responded well to cognitive restructuring exercise. Expressed surprise at being able to reframe his thoughts. Said "I didn\'t realize how much I was catastrophizing." Showed genuine engagement with worry scheduling concept.',
   progress: "Some progress",
   risk_level: "No risk indicators",
   risk_details: "",
   plan_next_session:
     "Continue cognitive restructuring with focus on independent distortion identification. Begin worry time scheduling. Review thought log with emphasis on catching distortions without therapist prompting.",
   homework:
-    "Daily thought log — identify at least one cognitive distortion per day and attempt reframe. Continue 4-7-8 breathing 2x/day. Try 15-minute scheduled worry time once this week.",
-  next_appointment: "Weekly — next Tuesday 2pm",
+    "Daily thought log - identify at least one cognitive distortion per day and attempt reframe. Continue 4-7-8 breathing 2x/day. Try 15-minute scheduled worry time once this week.",
+  next_appointment: "Weekly - next Tuesday 2pm",
 };
 
 const state = {
   currentView: "form",
   latestRequest: null,
   generatedNote: null,
+  currentNoteId: null,
+  feedbackSelection: "",
+  feedbackSubmitted: false,
+  feedbackPending: false,
 };
 
 const elements = {
@@ -162,6 +97,12 @@ const elements = {
   newNote: document.querySelector("#new-note"),
   backToForm: document.querySelector("#back-to-form"),
   noteCardTemplate: document.querySelector("#note-card-template"),
+  feedbackPanel: document.querySelector("#feedback-panel"),
+  feedbackButtons: Array.from(document.querySelectorAll("[data-feedback-rating]")),
+  feedbackNotes: document.querySelector("#feedback-notes"),
+  submitFeedback: document.querySelector("#submit-feedback"),
+  skipFeedback: document.querySelector("#skip-feedback"),
+  feedbackMessage: document.querySelector("#feedback-message"),
 };
 
 init();
@@ -172,6 +113,7 @@ function init() {
   bindEvents();
   syncFormatCaption();
   toggleRiskDetails();
+  syncFeedbackButtons();
 }
 
 function bindEvents() {
@@ -182,6 +124,16 @@ function bindEvents() {
   elements.regenerateNote.addEventListener("click", handleRegenerate);
   elements.newNote.addEventListener("click", handleNewNote);
   elements.backToForm.addEventListener("click", () => showView("form"));
+  elements.submitFeedback.addEventListener("click", handleSubmitFeedback);
+  elements.skipFeedback.addEventListener("click", handleSkipFeedback);
+
+  elements.feedbackButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.feedbackSelection = button.dataset.feedbackRating || "";
+      syncFeedbackButtons();
+      clearInlineMessage(elements.feedbackMessage);
+    });
+  });
 
   elements.form.addEventListener("change", (event) => {
     if (event.target.name === "note_format") {
@@ -214,10 +166,14 @@ function hydrateFromStorage() {
   }
 
   const savedNote = safelyParseJSON(localStorage.getItem(STORAGE_KEYS.note));
-  if (savedNote && savedNote.request && savedNote.response) {
+  if (savedNote && savedNote.request && savedNote.response && savedNote.noteId) {
     state.latestRequest = savedNote.request;
     state.generatedNote = savedNote.response;
+    state.currentNoteId = savedNote.noteId;
+    state.feedbackSubmitted = Boolean(savedNote.feedbackSubmitted);
+    state.feedbackPending = Boolean(savedNote.feedbackPending);
     renderGeneratedNote(savedNote.response);
+    updateFeedbackVisibility(state.feedbackPending);
     showView("note");
   }
 }
@@ -374,16 +330,20 @@ async function handleGenerate(event) {
   showLoading(payload.note_format);
 
   try {
-    const aiResponse = await generateNoteFromWorker(payload);
-    state.generatedNote = aiResponse;
-    localStorage.setItem(
-      STORAGE_KEYS.note,
-      JSON.stringify({
-        request: payload,
-        response: aiResponse,
-      }),
-    );
-    renderGeneratedNote(aiResponse);
+    const response = await apiRequest("/api/generate-note", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    state.currentNoteId = response.note_id;
+    state.generatedNote = {
+      format: response.format,
+      metadata: response.metadata,
+      sections: response.sections,
+    };
+    resetFeedbackState();
+    persistGeneratedNote();
+    renderGeneratedNote(state.generatedNote);
     showView("note");
   } catch (error) {
     console.error(error);
@@ -399,152 +359,6 @@ async function handleGenerate(event) {
 function showLoading(noteFormat) {
   elements.loadingTitle.textContent = `Generating your ${noteFormat} note...`;
   showView("loading");
-}
-
-async function generateNoteFromWorker(payload) {
-  const systemPrompt = SYSTEM_PROMPTS[payload.note_format];
-  const userPrompt = buildUserPrompt(payload);
-
-  const response = await fetch(WORKER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "anthropic/claude-sonnet-4-5",
-      max_tokens: 2000,
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-
-  const responseText = await response.text();
-  const responseBody = safelyParseJSON(responseText);
-
-  if (!response.ok) {
-    const message =
-      responseBody?.error?.message ||
-      responseBody?.message ||
-      `Worker request failed with status ${response.status}.`;
-    throw new Error(message);
-  }
-
-  const rawContent = responseBody?.choices?.[0]?.message?.content;
-  if (!rawContent) {
-    throw new Error("The worker returned no note content.");
-  }
-
-  const parsedSections = parseWorkerContent(rawContent);
-  validateSectionShape(payload.note_format, parsedSections);
-
-  return {
-    format: payload.note_format,
-    metadata: buildMetadata(payload),
-    sections: buildSectionState(payload.note_format, parsedSections),
-  };
-}
-
-function buildUserPrompt(payload) {
-  const goals = payload.treatment_goals || "Not specified";
-  const additional = payload.additional_observations || "None noted";
-  const homework = payload.homework || "None assigned";
-  const nextAppointment = payload.next_appointment || "To be scheduled";
-  const riskDetails = payload.risk_details ? `RISK DETAILS: ${payload.risk_details}` : "";
-  const interventions = payload.interventions_checked.join(", ");
-
-  return `SESSION INFORMATION:
-- Client: ${payload.client_name}
-- Session #${payload.session_number} | ${formatDateLong(payload.session_date)} | ${payload.duration_minutes} min | ${payload.session_type}
-- Diagnosis: ${payload.primary_diagnosis}
-- Treatment Modality: ${payload.treatment_modality}
-- Current Treatment Goals: ${goals}
-
-CLIENT REPORT:
-${payload.client_report}
-
-INTERVENTIONS USED:
-Techniques: ${interventions}
-Description: ${payload.interventions_description}
-
-THERAPIST OBSERVATIONS:
-- Affect: ${payload.affect}
-- Engagement: ${payload.engagement}
-- Eye Contact: ${payload.eye_contact}
-- Appearance: ${payload.appearance}
-- Speech: ${payload.speech}
-- Thought Process: ${payload.thought_process}
-- Additional: ${additional}
-
-CLIENT RESPONSE TO SESSION:
-${payload.client_response}
-
-PROGRESS TOWARD GOALS: ${payload.progress}
-
-RISK ASSESSMENT: ${payload.risk_level}
-${riskDetails}
-
-PLAN:
-- Next session focus: ${payload.plan_next_session}
-- Homework: ${homework}
-- Next appointment: ${nextAppointment}
-
-Generate a ${payload.note_format} progress note.`;
-}
-
-function parseWorkerContent(rawContent) {
-  if (typeof rawContent === "string") {
-    return parseJSONString(rawContent);
-  }
-
-  if (Array.isArray(rawContent)) {
-    const text = rawContent
-      .map((entry) => (typeof entry === "string" ? entry : entry?.text || ""))
-      .join("")
-      .trim();
-    return parseJSONString(text);
-  }
-
-  throw new Error("Unexpected response format from the worker.");
-}
-
-function parseJSONString(content) {
-  const cleaned = content.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "");
-  const parsed = safelyParseJSON(cleaned);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("The note response was not valid JSON.");
-  }
-  return parsed;
-}
-
-function validateSectionShape(format, sections) {
-  const requiredKeys = SECTION_CONFIG[format].map((section) => section.key);
-  const missing = requiredKeys.find((key) => typeof sections[key] !== "string" || !sections[key].trim());
-  if (missing) {
-    throw new Error(`The generated ${format} note was missing the "${missing}" section.`);
-  }
-}
-
-function buildMetadata(payload) {
-  return {
-    client_name: payload.client_name,
-    session_number: payload.session_number,
-    session_date: payload.session_date,
-    duration_minutes: payload.duration_minutes,
-    session_type: payload.session_type,
-    diagnosis: payload.primary_diagnosis,
-    modality: payload.treatment_modality,
-  };
-}
-
-function buildSectionState(format, generatedSections) {
-  return SECTION_CONFIG[format].map((section) => ({
-    ...section,
-    content: generatedSections[section.key].trim(),
-    edited: false,
-  }));
 }
 
 function renderGeneratedNote(note) {
@@ -571,6 +385,7 @@ function renderGeneratedNote(note) {
     const textarea = fragment.querySelector("textarea");
     const saveEdit = fragment.querySelector(".save-edit");
     const cancelEdit = fragment.querySelector(".cancel-edit");
+    const cardMessage = fragment.querySelector(".section-message");
 
     label.textContent = `${section.short} — ${section.title}`;
     title.textContent = section.title;
@@ -581,27 +396,53 @@ function renderGeneratedNote(note) {
 
     editToggle.addEventListener("click", () => {
       editPanel.classList.toggle("is-hidden");
+      clearInlineMessage(cardMessage);
       if (!editPanel.classList.contains("is-hidden")) {
         textarea.focus();
         textarea.setSelectionRange(textarea.value.length, textarea.value.length);
       }
     });
 
-    saveEdit.addEventListener("click", () => {
+    saveEdit.addEventListener("click", async () => {
       const nextValue = textarea.value.trim();
-      if (!nextValue) {
+      if (!nextValue || !state.generatedNote || !state.currentNoteId) {
         return;
       }
 
-      state.generatedNote.sections[index].content = nextValue;
-      state.generatedNote.sections[index].edited = true;
-      persistGeneratedNote();
-      renderGeneratedNote(state.generatedNote);
+      const previousValue = state.generatedNote.sections[index].content;
+      if (previousValue === nextValue) {
+        editPanel.classList.add("is-hidden");
+        return;
+      }
+
+      saveEdit.disabled = true;
+      setInlineMessage(cardMessage, "Saving edit...", "success");
+
+      try {
+        await apiRequest(`/api/notes/${state.currentNoteId}/edits`, {
+          method: "POST",
+          body: JSON.stringify({
+            edits: {
+              [section.key]: nextValue,
+            },
+          }),
+        });
+
+        state.generatedNote.sections[index].content = nextValue;
+        state.generatedNote.sections[index].edited = true;
+        persistGeneratedNote();
+        renderGeneratedNote(state.generatedNote);
+      } catch (error) {
+        console.error(error);
+        setInlineMessage(cardMessage, error.message || "Edit save failed.", "error");
+        saveEdit.disabled = false;
+      }
     });
 
     cancelEdit.addEventListener("click", () => {
       textarea.value = state.generatedNote.sections[index].content;
       editPanel.classList.add("is-hidden");
+      clearInlineMessage(cardMessage);
     });
 
     card.dataset.sectionKey = section.key;
@@ -610,16 +451,25 @@ function renderGeneratedNote(note) {
 }
 
 async function handleCopyNote() {
-  if (!state.generatedNote) {
+  if (!state.generatedNote || !state.currentNoteId) {
     return;
   }
 
+  const finalOutput = buildClipboardOutput(state.generatedNote);
+
   try {
-    await navigator.clipboard.writeText(buildClipboardOutput(state.generatedNote));
+    await navigator.clipboard.writeText(finalOutput);
+    await apiRequest(`/api/notes/${state.currentNoteId}/copied`, {
+      method: "POST",
+      body: JSON.stringify({ final_output: finalOutput }),
+    });
+    state.feedbackPending = true;
     setInlineMessage(elements.copyStatus, "Copied to clipboard.", "success");
+    updateFeedbackVisibility(true);
+    persistGeneratedNote();
   } catch (error) {
     console.error(error);
-    setInlineMessage(elements.copyStatus, "Clipboard copy failed. Copy manually from the page.", "error");
+    setInlineMessage(elements.copyStatus, error.message || "Clipboard copy failed.", "error");
   }
 }
 
@@ -633,10 +483,20 @@ async function handleRegenerate() {
   showLoading(state.latestRequest.note_format);
 
   try {
-    const aiResponse = await generateNoteFromWorker(state.latestRequest);
-    state.generatedNote = aiResponse;
+    const response = await apiRequest("/api/generate-note", {
+      method: "POST",
+      body: JSON.stringify(state.latestRequest),
+    });
+
+    state.currentNoteId = response.note_id;
+    state.generatedNote = {
+      format: response.format,
+      metadata: response.metadata,
+      sections: response.sections,
+    };
+    resetFeedbackState();
     persistGeneratedNote();
-    renderGeneratedNote(aiResponse);
+    renderGeneratedNote(state.generatedNote);
     showView("note");
   } catch (error) {
     console.error(error);
@@ -651,15 +511,62 @@ async function handleRegenerate() {
 
 function handleNewNote() {
   state.generatedNote = null;
+  state.currentNoteId = null;
+  state.feedbackSubmitted = false;
+  state.feedbackPending = false;
+  resetFeedbackState();
   localStorage.removeItem(STORAGE_KEYS.note);
   clearInlineMessage(elements.copyStatus);
-  showView("form");
   elements.noteSections.innerHTML = "";
+  showView("form");
+}
+
+async function handleSubmitFeedback() {
+  if (!state.currentNoteId) {
+    return;
+  }
+
+  if (!state.feedbackSelection) {
+    setInlineMessage(elements.feedbackMessage, "Choose a feedback rating first.", "error");
+    return;
+  }
+
+  elements.submitFeedback.disabled = true;
+  setInlineMessage(elements.feedbackMessage, "Saving feedback...", "success");
+
+  try {
+    await apiRequest(`/api/notes/${state.currentNoteId}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({
+        feedback_rating: state.feedbackSelection,
+        feedback_notes: elements.feedbackNotes.value.trim(),
+      }),
+    });
+
+    state.feedbackSubmitted = true;
+    state.feedbackPending = false;
+    persistGeneratedNote();
+    setInlineMessage(elements.feedbackMessage, "Feedback saved.", "success");
+    window.setTimeout(() => {
+      updateFeedbackVisibility(false);
+    }, 900);
+  } catch (error) {
+    console.error(error);
+    elements.submitFeedback.disabled = false;
+    setInlineMessage(elements.feedbackMessage, error.message || "Feedback save failed.", "error");
+  }
+}
+
+function handleSkipFeedback() {
+  state.feedbackSubmitted = true;
+  state.feedbackPending = false;
+  persistGeneratedNote();
+  updateFeedbackVisibility(false);
 }
 
 function buildClipboardOutput(note) {
   const lines = [
-    "PROGRESS NOTE — DRAFT",
+    "PROGRESS NOTE - DRAFT",
     `Client: ${note.metadata.client_name}`,
     `Session #${note.metadata.session_number} | ${formatDateLong(note.metadata.session_date)} | ${note.metadata.duration_minutes} minutes | ${note.metadata.session_type}`,
     `Diagnosis: ${note.metadata.diagnosis}`,
@@ -692,6 +599,28 @@ function syncFormatCaption() {
   elements.generateCaption.textContent = `Note format: ${format} · Estimated generation time: 15-20 seconds`;
 }
 
+function syncFeedbackButtons() {
+  elements.feedbackButtons.forEach((button) => {
+    const selected = button.dataset.feedbackRating === state.feedbackSelection;
+    button.classList.toggle("is-selected", selected);
+  });
+}
+
+function resetFeedbackState() {
+  state.feedbackSelection = "";
+  state.feedbackSubmitted = false;
+  state.feedbackPending = false;
+  elements.feedbackNotes.value = "";
+  elements.submitFeedback.disabled = false;
+  syncFeedbackButtons();
+  clearInlineMessage(elements.feedbackMessage);
+  updateFeedbackVisibility(false);
+}
+
+function updateFeedbackVisibility(visible) {
+  elements.feedbackPanel.classList.toggle("is-hidden", !visible);
+}
+
 function showView(nextView) {
   state.currentView = nextView;
   elements.formView.classList.toggle("is-hidden", nextView !== "form");
@@ -704,17 +633,41 @@ function persistDraft() {
 }
 
 function persistGeneratedNote() {
-  if (!state.generatedNote || !state.latestRequest) {
+  if (!state.generatedNote || !state.latestRequest || !state.currentNoteId) {
     return;
   }
 
   localStorage.setItem(
     STORAGE_KEYS.note,
     JSON.stringify({
+      noteId: state.currentNoteId,
       request: state.latestRequest,
       response: state.generatedNote,
+      feedbackSubmitted: state.feedbackSubmitted,
+      feedbackPending: state.feedbackPending,
     }),
   );
+}
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${BACKEND_URL}${path}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+    body: options.body,
+  });
+
+  const text = await response.text();
+  const parsed = safelyParseJSON(text);
+
+  if (!response.ok) {
+    const message = parsed?.detail || parsed?.message || `Request failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return parsed;
 }
 
 function setInlineMessage(element, message, type) {
