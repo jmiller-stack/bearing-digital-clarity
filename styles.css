@@ -26,7 +26,6 @@ html {
 
 body {
   margin: 0;
-  min-width: 1180px;
   font-family: "DM Sans", sans-serif;
   background:
     radial-gradient(circle at top left, rgba(196, 214, 186, 0.4), transparent 28%),
@@ -201,7 +200,9 @@ button {
 .toolbar-actions,
 .generate-actions,
 .note-card-actions,
-.edit-actions {
+.edit-actions,
+.feedback-buttons,
+.feedback-actions {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -516,8 +517,361 @@ input[type="radio"] {
   margin-top: 20px;
 }
 
+.section-message {
+  margin-top: 12px;
+}
+
+.feedback-panel {
+  margin-top: 20px;
+  display: grid;
+  gap: 20px;
+}
+
+.feedback-copy h3 {
+  margin: 0;
+  font-family: "DM Serif Display", serif;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.feedback-copy p {
+  margin: 8px 0 0;
+  color: var(--text-soft);
+}
+
+.feedback-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.feedback-buttons {
+  flex-wrap: wrap;
+}
+
+.feedback-button.is-selected {
+  background: linear-gradient(180deg, #6f8c74 0%, #547059 100%);
+  color: #f7f5ef;
+  box-shadow: 0 14px 30px rgba(84, 112, 89, 0.18);
+}
+
+@media (max-width: 1100px) {
+  .page-shell {
+    padding: 28px 18px 56px;
+  }
+
+  .hero-grid,
+  .two-up,
+  .three-up,
+  .checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar,
+  .note-header,
+  .note-actions,
+  .generate-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .generate-actions {
+    margin-left: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-actions,
+  .note-card-actions,
+  .feedback-actions {
+    flex-wrap: wrap;
+  }
+
+  .hero-copy h1 {
+    font-size: 46px;
+  }
+}
+
+@media (max-width: 720px) {
+  body {
+    min-width: 0;
+  }
+
+  .panel,
+  .hero-panel {
+    padding: 22px 18px;
+  }
+
+  .hero-copy h1 {
+    font-size: 36px;
+  }
+
+  .hero-copy p {
+    font-size: 18px;
+  }
+
+  .button,
+  .button-large {
+    width: 100%;
+  }
+
+  .feedback-buttons,
+  .feedback-actions,
+  .toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Hero topbar — eyebrow + settings trigger on the same row
+   ---------------------------------------------------------------------- */
+
+.hero-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Attestation field — mandatory clinician checkbox above Generate button
+   ---------------------------------------------------------------------- */
+
+.generate-panel {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.generate-panel .generate-actions {
+  align-self: flex-end;
+  margin-left: 0;
+}
+
+.attestation-field {
+  padding: 16px 20px;
+  background: rgba(219, 230, 214, 0.35);
+  border: 1px solid rgba(108, 136, 113, 0.22);
+  border-radius: var(--radius-small);
+}
+
+.attestation-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.attestation-label input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent-deep);
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------------
+   AI Transparency footer — persistent notice inside note view
+   ---------------------------------------------------------------------- */
+
+.ai-transparency-footer {
+  margin-top: 16px;
+  padding: 14px 20px;
+  border-radius: var(--radius-small);
+  background: rgba(236, 232, 220, 0.55);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--text-soft);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* -------------------------------------------------------------------------
+   Compliance Shield footer — site-wide bottom bar
+   ---------------------------------------------------------------------- */
+
+.compliance-footer {
+  position: relative;
+  z-index: 1;
+  margin-top: 48px;
+  padding: 18px 32px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  border-top: 1px solid var(--line);
+}
+
+/* -------------------------------------------------------------------------
+   Settings modal overlay + panel
+   ---------------------------------------------------------------------- */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(36, 50, 42, 0.45);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.settings-overlay.is-hidden {
+  display: none;
+}
+
+.settings-modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-family: "DM Serif Display", serif;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.settings-section {
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-section:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.settings-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent-deep);
+}
+
+.settings-section-description {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+.settings-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: rgba(255, 253, 248, 0.7);
+}
+
+.settings-action-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-action-copy strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.settings-action-copy p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.settings-action-copy a {
+  color: var(--accent-deep);
+}
+
+.settings-action .button {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.settings-delete-btn {
+  color: #995c4d;
+  border-color: rgba(153, 92, 77, 0.2);
+}
+
+.settings-delete-btn:hover {
+  background: rgba(153, 92, 77, 0.08);
+}
+
+.baa-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-deep);
+  text-decoration: none;
+  padding: 14px 18px;
+  border: 1px solid rgba(108, 136, 113, 0.22);
+  border-radius: var(--radius-small);
+  background: rgba(219, 230, 214, 0.35);
+  transition: background 0.2s ease;
+}
+
+.baa-link:hover {
+  background: rgba(219, 230, 214, 0.6);
+}
+
+/* Responsive adjustments for settings modal */
+@media (max-width: 600px) {
+  .settings-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-action .button {
+    align-self: stretch;
+  }
+
+  .hero-topbar {
+    flex-wrap: wrap;
   }
 }

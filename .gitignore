@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Database
+*.db
+
+# Claude internal
+.claude/

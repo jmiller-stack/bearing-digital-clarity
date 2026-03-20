@@ -8,12 +8,12 @@ const SECTION_CONFIG = {
   SOAP: [
     { key: "subjective", short: "S", title: "Subjective", clipboard: "SUBJECTIVE" },
     { key: "objective", short: "O", title: "Objective", clipboard: "OBJECTIVE" },
-    { key: "assessment", short: "A", title: "Assessment", clipboard: "ASSESSMENT" },
+    { key: "assessment", short: "A", title: "Clinical Summary (Draft)", clipboard: "CLINICAL SUMMARY" },
     { key: "plan", short: "P", title: "Plan", clipboard: "PLAN" },
   ],
   DAP: [
     { key: "data", short: "D", title: "Data", clipboard: "DATA" },
-    { key: "assessment", short: "A", title: "Assessment", clipboard: "ASSESSMENT" },
+    { key: "assessment", short: "A", title: "Clinical Summary (Draft)", clipboard: "CLINICAL SUMMARY" },
     { key: "plan", short: "P", title: "Plan", clipboard: "PLAN" },
   ],
   BIRP: [
@@ -83,6 +83,13 @@ const elements = {
   noteView: document.querySelector("#note-view"),
   loadDemo: document.querySelector("#load-demo"),
   clearForm: document.querySelector("#clear-form"),
+  openSettings: document.querySelector("#open-settings"),
+  settingsOverlay: document.querySelector("#settings-overlay"),
+  settingsClose: document.querySelector("#settings-close"),
+  requestData: document.querySelector("#request-data"),
+  deleteData: document.querySelector("#delete-data"),
+  settingsMessage: document.querySelector("#settings-message"),
+  baaLink: document.querySelector("#baa-link"),
   generateCaption: document.querySelector("#generate-caption"),
   formMessage: document.querySelector("#form-message"),
   loadingTitle: document.querySelector("#loading-title"),
@@ -92,9 +99,12 @@ const elements = {
   noteSections: document.querySelector("#note-sections"),
   copyStatus: document.querySelector("#copy-status"),
   riskDetailsField: document.querySelector("#risk-details-field"),
+  generateButton: document.querySelector("#generate-button"),
+  attestCheckbox: document.querySelector("#attest-checkbox"),
   copyNote: document.querySelector("#copy-note"),
   regenerateNote: document.querySelector("#regenerate-note"),
   newNote: document.querySelector("#new-note"),
+  finalizePurge: document.querySelector("#finalize-purge"),
   backToForm: document.querySelector("#back-to-form"),
   noteCardTemplate: document.querySelector("#note-card-template"),
   feedbackPanel: document.querySelector("#feedback-panel"),
@@ -114,19 +124,33 @@ function init() {
   syncFormatCaption();
   toggleRiskDetails();
   syncFeedbackButtons();
+  if (elements.baaLink) elements.baaLink.href = `${BACKEND_URL}/legal/baa`;
 }
 
 function bindEvents() {
   const on = (el, event, fn) => el && el.addEventListener(event, fn);
   on(elements.form, "submit", handleGenerate);
+  on(elements.attestCheckbox, "change", () => {
+    if (elements.generateButton) {
+      elements.generateButton.disabled = !elements.attestCheckbox.checked;
+    }
+  });
   on(elements.loadDemo, "click", loadDemoData);
   on(elements.clearForm, "click", handleClearForm);
   on(elements.copyNote, "click", handleCopyNote);
   on(elements.regenerateNote, "click", handleRegenerate);
   on(elements.newNote, "click", handleNewNote);
   on(elements.backToForm, "click", () => showView("form"));
+  on(elements.finalizePurge, "click", handleFinalizePurge);
   on(elements.submitFeedback, "click", handleSubmitFeedback);
   on(elements.skipFeedback, "click", handleSkipFeedback);
+  on(elements.openSettings, "click", openSettingsModal);
+  on(elements.settingsClose, "click", closeSettingsModal);
+  on(elements.requestData, "click", handleRequestData);
+  on(elements.deleteData, "click", handleDeleteData);
+  on(elements.settingsOverlay, "click", (event) => {
+    if (event.target === elements.settingsOverlay) closeSettingsModal();
+  });
 
   elements.feedbackButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -195,6 +219,8 @@ function handleClearForm() {
   syncFormatCaption();
   clearInlineMessage(elements.formMessage);
   localStorage.removeItem(STORAGE_KEYS.draft);
+  if (elements.attestCheckbox) elements.attestCheckbox.checked = false;
+  if (elements.generateButton) elements.generateButton.disabled = true;
 }
 
 function loadDemoData() {
@@ -522,6 +548,33 @@ function handleNewNote() {
   showView("form");
 }
 
+async function handleFinalizePurge() {
+  if (!state.currentNoteId) {
+    localStorage.removeItem(STORAGE_KEYS.note);
+    showView("form");
+    return;
+  }
+
+  try {
+    await apiRequest(`/api/notes/${state.currentNoteId}/purge`, { method: "DELETE" });
+  } catch (error) {
+    console.error("Purge failed:", error);
+  }
+
+  state.generatedNote = null;
+  state.currentNoteId = null;
+  state.latestRequest = null;
+  state.feedbackSubmitted = false;
+  state.feedbackPending = false;
+  resetFeedbackState();
+  localStorage.removeItem(STORAGE_KEYS.note);
+  localStorage.removeItem(STORAGE_KEYS.draft);
+  elements.noteSections.innerHTML = "";
+  if (elements.attestCheckbox) elements.attestCheckbox.checked = false;
+  if (elements.generateButton) elements.generateButton.disabled = true;
+  showView("form");
+}
+
 async function handleSubmitFeedback() {
   if (!state.currentNoteId) {
     return;
@@ -563,6 +616,71 @@ function handleSkipFeedback() {
   state.feedbackPending = false;
   persistGeneratedNote();
   updateFeedbackVisibility(false);
+}
+
+function openSettingsModal() {
+  if (elements.settingsOverlay) elements.settingsOverlay.classList.remove("is-hidden");
+  if (elements.settingsMessage) clearInlineMessage(elements.settingsMessage);
+}
+
+function closeSettingsModal() {
+  if (elements.settingsOverlay) elements.settingsOverlay.classList.add("is-hidden");
+}
+
+async function handleRequestData() {
+  if (elements.requestData) elements.requestData.disabled = true;
+  setInlineMessage(elements.settingsMessage, "Preparing your data export…", "success");
+
+  try {
+    const data = await apiRequest("/api/user/data");
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `clarity-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setInlineMessage(elements.settingsMessage, "Download started.", "success");
+  } catch (error) {
+    console.error(error);
+    setInlineMessage(elements.settingsMessage, error.message || "Export failed. Try again.", "error");
+  } finally {
+    if (elements.requestData) elements.requestData.disabled = false;
+  }
+}
+
+async function handleDeleteData() {
+  const confirmed = window.confirm(
+    "Are you sure? This will permanently delete all your Clarity data and cannot be undone."
+  );
+  if (!confirmed) return;
+
+  if (elements.deleteData) elements.deleteData.disabled = true;
+  setInlineMessage(elements.settingsMessage, "Deleting all data…", "success");
+
+  try {
+    const result = await apiRequest("/api/user/data", { method: "DELETE" });
+    const count = result.records_deleted ?? 0;
+    setInlineMessage(
+      elements.settingsMessage,
+      `Done. ${count} session record${count !== 1 ? "s" : ""} permanently deleted.`,
+      "success"
+    );
+    // Clear local state and storage as well
+    state.generatedNote = null;
+    state.currentNoteId = null;
+    state.latestRequest = null;
+    state.feedbackSubmitted = false;
+    state.feedbackPending = false;
+    localStorage.removeItem(STORAGE_KEYS.note);
+    localStorage.removeItem(STORAGE_KEYS.draft);
+    if (elements.attestCheckbox) elements.attestCheckbox.checked = false;
+    if (elements.generateButton) elements.generateButton.disabled = true;
+  } catch (error) {
+    console.error(error);
+    setInlineMessage(elements.settingsMessage, error.message || "Deletion failed. Try again.", "error");
+    if (elements.deleteData) elements.deleteData.disabled = false;
+  }
 }
 
 function buildClipboardOutput(note) {

@@ -22,7 +22,12 @@
       <div class="ambient ambient-right"></div>
 
       <header class="hero">
-        <div class="eyebrow">Bearing Digital Demo</div>
+        <div class="hero-topbar">
+          <div class="eyebrow">Bearing Digital Demo</div>
+          <button id="open-settings" class="button button-ghost button-small" type="button">
+            Settings &amp; Privacy
+          </button>
+        </div>
         <div class="hero-grid">
           <div class="hero-copy">
             <h1>Your session is over. Your note is done.</h1>
@@ -35,7 +40,7 @@
             <div class="hero-panel-label">For clinician review</div>
             <div class="hero-stat">2-3 minutes to input</div>
             <div class="hero-stat">15-20 seconds to draft</div>
-            <div class="hero-stat">Frontend only via secure worker</div>
+            <div class="hero-stat">Backend persistence with secure server-side AI calls</div>
           </aside>
         </div>
       </header>
@@ -383,9 +388,15 @@
                   Note format: SOAP · Estimated generation time: 15-20 seconds
                 </p>
               </div>
+              <div class="attestation-field">
+                <label class="attestation-label">
+                  <input type="checkbox" id="attest-checkbox" />
+                  <span>I certify that I have independently reviewed these inputs for clinical accuracy. I have provided the required disclosure to the patient regarding the use of AI for administrative documentation support.</span>
+                </label>
+              </div>
               <div class="generate-actions">
                 <div id="form-message" class="inline-message" aria-live="polite"></div>
-                <button id="generate-button" class="button button-primary button-large" type="submit">
+                <button id="generate-button" class="button button-primary button-large" type="submit" disabled>
                   Generate Clinical Note
                 </button>
               </div>
@@ -432,8 +443,56 @@
               <button id="new-note" class="button button-ghost" type="button">
                 New Note
               </button>
+              <button id="finalize-purge" class="button button-ghost" type="button">
+                Finalize &amp; Purge
+              </button>
             </div>
             <div id="copy-status" class="inline-message" aria-live="polite"></div>
+          </section>
+
+          <div class="ai-transparency-footer">
+            Note generated via Clarity AI Administrative Assistant. This tool does not provide clinical diagnosis or treatment advice.
+          </div>
+
+          <section id="feedback-panel" class="feedback-panel panel is-hidden">
+            <div class="feedback-copy">
+              <div class="draft-badge">Post-copy feedback</div>
+              <h3>How usable was this draft?</h3>
+              <p>Choose a rating, add optional notes, or skip.</p>
+            </div>
+            <div class="feedback-grid">
+              <div class="feedback-buttons">
+                <button class="button button-secondary feedback-button" type="button" data-feedback-rating="Used as-is">
+                  Used as-is
+                </button>
+                <button class="button button-secondary feedback-button" type="button" data-feedback-rating="Minor edits">
+                  Minor edits
+                </button>
+                <button class="button button-secondary feedback-button" type="button" data-feedback-rating="Major edits">
+                  Major edits
+                </button>
+                <button class="button button-secondary feedback-button" type="button" data-feedback-rating="Not useful">
+                  Not useful
+                </button>
+              </div>
+              <label class="field field-full">
+                <span>Optional feedback notes</span>
+                <textarea
+                  id="feedback-notes"
+                  rows="3"
+                  placeholder="What made this output strong or weak?"
+                ></textarea>
+              </label>
+              <div class="feedback-actions">
+                <button id="submit-feedback" class="button button-primary" type="button">
+                  Save Feedback
+                </button>
+                <button id="skip-feedback" class="button button-ghost" type="button">
+                  Skip
+                </button>
+                <div id="feedback-message" class="inline-message" aria-live="polite"></div>
+              </div>
+            </div>
           </section>
         </section>
       </main>
@@ -459,10 +518,68 @@
               <button class="button button-secondary button-small save-edit" type="button">Save</button>
               <button class="button button-ghost button-small cancel-edit" type="button">Cancel</button>
             </div>
+            <div class="section-message inline-message" aria-live="polite"></div>
           </div>
         </div>
       </article>
     </template>
+
+    <div id="settings-overlay" class="settings-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-modal panel">
+
+        <div class="settings-header">
+          <h2 id="settings-title">Settings &amp; Privacy</h2>
+          <button id="settings-close" class="button button-ghost button-small" type="button">Close</button>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-label">Your Data Rights (MODPA 2026)</div>
+          <p class="settings-section-description">
+            As a Maryland-regulated service, Clarity provides full data access and deletion rights
+            under the Maryland Online Data Privacy Act.
+          </p>
+
+          <div class="settings-action">
+            <div class="settings-action-copy">
+              <strong>Request My Data</strong>
+              <p>Download a copy of all session records stored by Clarity as a JSON file.</p>
+            </div>
+            <button id="request-data" class="button button-secondary" type="button">Download My Data</button>
+          </div>
+
+          <div class="settings-action">
+            <div class="settings-action-copy">
+              <strong>Delete All My Data</strong>
+              <p>Permanently erase all session records. This cannot be undone.</p>
+            </div>
+            <button id="delete-data" class="button button-ghost settings-delete-btn" type="button">Delete All Data</button>
+          </div>
+
+          <div class="settings-action">
+            <div class="settings-action-copy">
+              <strong>Correct My Data</strong>
+              <p>To correct a specific field on a session record (e.g., client name or diagnosis),
+              contact <a href="mailto:privacy@bearingdigital.com">privacy@bearingdigital.com</a>
+              with the session date and correction needed.</p>
+            </div>
+          </div>
+
+          <div id="settings-message" class="inline-message" aria-live="polite"></div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-label">Legal &amp; Compliance</div>
+          <a id="baa-link" class="baa-link" target="_blank" rel="noopener noreferrer">
+            View Business Associate Agreement (HIPAA BAA) ↗
+          </a>
+        </div>
+
+      </div>
+    </div>
+
+    <footer class="compliance-footer">
+      MODPA 2026 Compliant | HIPAA Secure | No Audio Recording Architecture
+    </footer>
 
     <script src="app.js"></script>
   </body>
