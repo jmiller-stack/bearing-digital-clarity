@@ -260,6 +260,10 @@ legend {
   grid-column: 1 / -1;
 }
 
+input[type="date"] {
+  min-width: 0;
+}
+
 label.field input,
 label.field select,
 label.field textarea,
