@@ -870,6 +870,17 @@ input[type="radio"] {
   .voice-timer {
     min-width: 0;
   }
+
+  .two-up,
+  .three-up {
+    grid-template-columns: 1fr;
+  }
+
+  input[type="date"] {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 
 @keyframes spin {
