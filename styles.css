@@ -876,10 +876,14 @@ input[type="radio"] {
     grid-template-columns: 1fr;
   }
 
-  input[type="date"] {
+  input[type="date"],
+  input[type="time"],
+  input[type="month"],
+  input[type="week"],
+  input[type="datetime-local"] {
     width: 100%;
     max-width: 100%;
-    box-sizing: border-box;
+    min-width: 0;
   }
 }
 
@@ -1135,17 +1139,4 @@ input[type="radio"] {
 }
 
 /* Responsive adjustments for settings modal */
-@media (max-width: 600px) {
-  .settings-action {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .settings-action .button {
-    align-self: stretch;
-  }
-
-  .hero-topbar {
-    flex-wrap: wrap;
-  }
-}
+@media (max-wid
