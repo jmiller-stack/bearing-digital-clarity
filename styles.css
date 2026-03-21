@@ -265,6 +265,9 @@ legend {
 
 input[type="date"] {
   min-width: 0;
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 label.field input,
