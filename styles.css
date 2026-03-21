@@ -368,7 +368,7 @@ input[type="radio"] {
 
 .embedded-field {
   margin-top: 14px;
-  max-width: 340px;
+  max-width: 100%;
 }
 
 .chip-input {
@@ -929,7 +929,7 @@ input[type="radio"] {
 }
 
 .generate-panel .generate-actions {
-  align-self: flex-end;
+  align-self: stretch;
   margin-left: 0;
 }
 
@@ -1139,4 +1139,9 @@ input[type="radio"] {
 }
 
 /* Responsive adjustments for settings modal */
-@media (max-width:
+@media (max-width: 600px) {
+  .two-up, .three-up { grid-template-columns: 1fr; }
+  .settings-action { flex-direction: column; align-items: stretch; }
+  .settings-action .button { align-self: stretch; }
+  .hero-topbar { flex-wrap: wrap; }
+}
