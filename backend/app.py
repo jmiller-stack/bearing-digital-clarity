@@ -536,7 +536,7 @@ def debug_env() -> dict[str, bool]:
     }
 
 
-BAA_PATH = BASE_DIR.parent / "legal" / "baa.docx"
+BAA_PATH = BASE_DIR / "baa.docx"
 
 
 @app.get("/legal/baa")
