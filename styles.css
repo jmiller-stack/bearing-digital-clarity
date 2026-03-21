@@ -41,6 +41,8 @@ input,
 select,
 textarea {
   font: inherit;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 button {
@@ -241,6 +243,7 @@ button {
   flex-direction: column;
   gap: 9px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .field > span,
