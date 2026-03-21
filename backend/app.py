@@ -526,6 +526,16 @@ def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/debug/env")
+def debug_env() -> dict[str, bool]:
+    """Returns which API keys are present at runtime. No auth required. No key values exposed."""
+    return {
+        "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
+        "OPENROUTER_API_KEY": bool(os.getenv("OPENROUTER_API_KEY")),
+        "DB_ENCRYPTION_KEY": bool(os.getenv("DB_ENCRYPTION_KEY")),
+    }
+
+
 BAA_PATH = BASE_DIR.parent / "legal" / "baa.docx"
 
 
@@ -1056,22 +1066,16 @@ async def transcribe_audio_upload(audio: UploadFile) -> str:
     filename = audio.filename or f"session-summary{Path(audio.filename or '.webm').suffix or '.webm'}"
     content_type = audio.content_type or "application/octet-stream"
     openai_key = os.getenv("OPENAI_API_KEY")
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if not openai_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Transcription unavailable: OPENAI_API_KEY is not configured on the server.",
+        )
 
     files = {"file": (filename, audio_bytes, content_type)}
     data = {"model": "whisper-1"}
-
-    if openai_key:
-        headers = {"Authorization": f"Bearer {openai_key}"}
-        url = OPENAI_AUDIO_URL
-    elif openrouter_key:
-        headers = {"Authorization": f"Bearer {openrouter_key}"}
-        url = OPENROUTER_AUDIO_URL
-    else:
-        raise HTTPException(
-            status_code=500,
-            detail="OPENAI_API_KEY or OPENROUTER_API_KEY is required for transcription.",
-        )
+    headers = {"Authorization": f"Bearer {openai_key}"}
+    url = OPENAI_AUDIO_URL
 
     async with httpx.AsyncClient(timeout=90.0) as client:
         response = await client.post(url, headers=headers, data=data, files=files)
