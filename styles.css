@@ -799,8 +799,6 @@ input[type="radio"] {
   }
 
   .hero-grid,
-  .two-up,
-  .three-up,
   .checkbox-grid {
     grid-template-columns: 1fr;
   }
@@ -872,11 +870,6 @@ input[type="radio"] {
 
   .voice-timer {
     min-width: 0;
-  }
-
-  .two-up,
-  .three-up {
-    grid-template-columns: 1fr;
   }
 
   input[type="date"],
@@ -1142,4 +1135,22 @@ input[type="radio"] {
 }
 
 /* Responsive adjustments for settings modal */
-@media (max-wid
+@media (max-width: 600px) {
+  .two-up,
+  .three-up {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-action .button {
+    align-self: stretch;
+  }
+
+  .hero-topbar {
+    flex-wrap: wrap;
+  }
+}
