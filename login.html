@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In | Clarity</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f4efe5;
+        --text: #24322a;
+        --text-soft: #5c675f;
+        --accent: #6c8871;
+        --accent-deep: #4f6955;
+        --line: rgba(90, 111, 92, 0.18);
+        --radius: 22px;
+        --radius-small: 14px;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "DM Sans", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(196, 214, 186, 0.4), transparent 28%),
+          radial-gradient(circle at top right, rgba(236, 224, 201, 0.9), transparent 26%),
+          linear-gradient(180deg, #f5f1e7 0%, #f2ede3 48%, #efe8dc 100%);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .login-card {
+        background: rgba(255, 252, 245, 0.9);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: 0 24px 70px rgba(36, 50, 42, 0.08);
+        padding: 48px 40px 40px;
+        max-width: 420px;
+        width: 100%;
+        text-align: center;
+      }
+
+      .brand {
+        font-size: 1.6rem;
+        font-weight: 400;
+        letter-spacing: -0.01em;
+        color: var(--text);
+        margin: 0 0 8px;
+      }
+
+      .brand strong {
+        font-weight: 800;
+      }
+
+      .tagline {
+        font-size: 0.9rem;
+        color: var(--text-soft);
+        margin: 0 0 36px;
+        line-height: 1.5;
+      }
+
+      .google-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: #fff;
+        color: #3c4043;
+        border: 1px solid #dadce0;
+        border-radius: 10px;
+        padding: 12px 24px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        text-decoration: none;
+        width: 100%;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      }
+
+      .google-btn:hover {
+        background: #f8f8f8;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      }
+
+      .google-icon {
+        flex-shrink: 0;
+      }
+
+      .divider {
+        border: none;
+        border-top: 1px solid var(--line);
+        margin: 32px 0 20px;
+      }
+
+      .compliance-note {
+        font-size: 0.75rem;
+        color: var(--text-soft);
+        opacity: 0.8;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-card">
+      <h1 class="brand"><strong>Clarity</strong></h1>
+      <p class="tagline">Secure clinical documentation for mental health professionals</p>
+
+      <a href="https://web-production-d6d7d.up.railway.app/auth/login" class="google-btn">
+        <svg class="google-icon" width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+          <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+          <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+        </svg>
+        Sign in with Google
+      </a>
+
+      <hr class="divider" />
+
+      <p class="compliance-note">HIPAA Secure &middot; MODPA 2026 Compliant &middot; No data stored without your consent</p>
+    </div>
+  </body>
+</html>

@@ -230,45 +230,91 @@ const elements = {
   voicePopulatedList: document.querySelector("#voice-populated-list"),
 };
 
-// Handle OAuth code exchange on page load
-(function handleOAuthCode() {
+function checkAuth() {
   const urlParams = new URLSearchParams(window.location.search);
   const authCode = urlParams.get("code");
-  if (!authCode) return;
-  // Clean URL immediately — real token never lives in the URL
-  window.history.replaceState({}, document.title, window.location.pathname);
-  fetch(`${BACKEND_URL}/auth/exchange`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: authCode }),
-  })
-    .then((r) => r.json())
-    .then((data) => {
-      if (data.token) {
-        sessionStorage.setItem(STORAGE_KEYS.session, data.token);
-      }
+
+  if (authCode) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    fetch(`${BACKEND_URL}/auth/exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: authCode }),
     })
-    .catch(console.error);
-})();
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.token) {
+          sessionStorage.setItem(STORAGE_KEYS.session, data.token);
+          showApp();
+        } else {
+          window.location.href = "/login.html";
+        }
+      })
+      .catch(() => { window.location.href = "/login.html"; });
+    return;
+  }
+
+  const token = sessionStorage.getItem(STORAGE_KEYS.session);
+  if (!token) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  fetch(`${BACKEND_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((r) => {
+      if (r.status === 401) {
+        sessionStorage.removeItem(STORAGE_KEYS.session);
+        window.location.href = "/login.html";
+        return null;
+      }
+      return r.json();
+    })
+    .then((user) => {
+      if (user) showApp(user);
+    })
+    .catch(() => { window.location.href = "/login.html"; });
+}
+
+function showApp(user) {
+  const root = document.getElementById("app-root");
+  if (root) root.style.display = "block";
+  if (user) {
+    const userEl = document.getElementById("user-email");
+    if (userEl) userEl.textContent = user.email;
+  }
+  init().catch((error) => {
+    console.error(error);
+    setInlineMessage(elements.formMessage, "Initialization failed. Refresh and try again.", "error");
+  });
+}
+
+function handleSignOut() {
+  const token = sessionStorage.getItem(STORAGE_KEYS.session);
+  if (token) {
+    fetch(`${BACKEND_URL}/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).finally(() => {
+      sessionStorage.removeItem(STORAGE_KEYS.session);
+      window.location.href = "/login.html";
+    });
+  } else {
+    window.location.href = "/login.html";
+  }
+}
 
 function getSessionToken() {
   return sessionStorage.getItem(STORAGE_KEYS.session) || null;
 }
 
 function showLoginPrompt() {
-  if (document.getElementById("clarity-login-banner")) return;
-  const banner = document.createElement("div");
-  banner.id = "clarity-login-banner";
-  banner.innerHTML = `<div style="position:fixed;top:0;left:0;right:0;background:#2d5a27;color:white;padding:12px;text-align:center;z-index:9999;font-family:sans-serif;">
-    Your session has expired. <a href="${BACKEND_URL}/auth/login" style="color:#fff;font-weight:bold;text-decoration:underline">Sign in again</a>
-  </div>`;
-  document.body.prepend(banner);
+  sessionStorage.removeItem(STORAGE_KEYS.session);
+  window.location.href = "/login.html";
 }
 
-init().catch((error) => {
-  console.error(error);
-  setInlineMessage(elements.formMessage, "Initialization failed. Refresh and try again.", "error");
-});
+checkAuth();
 
 async function init() {
   state.userId = ensureUserId();
