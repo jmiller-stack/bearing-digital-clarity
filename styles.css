@@ -98,7 +98,11 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
+}
+
+.eyebrow strong {
+  font-weight: 800;
 }
 
 .hero {
