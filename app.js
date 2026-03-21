@@ -3,6 +3,7 @@ const STORAGE_KEYS = {
   draft: "clarity_form_draft_v2",
   note: "clarity_generated_note_v2",
   userId: "clarity_user_id",
+  session: "clarity_session",
 };
 
 const DEFAULT_TEMPLATE_LABEL = "Default (SOAP/DAP/BIRP)";
@@ -228,6 +229,41 @@ const elements = {
   voicePopulatedFields: document.querySelector("#voice-populated-fields"),
   voicePopulatedList: document.querySelector("#voice-populated-list"),
 };
+
+// Handle OAuth code exchange on page load
+(function handleOAuthCode() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const authCode = urlParams.get("code");
+  if (!authCode) return;
+  // Clean URL immediately — real token never lives in the URL
+  window.history.replaceState({}, document.title, window.location.pathname);
+  fetch(`${BACKEND_URL}/auth/exchange`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: authCode }),
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      if (data.token) {
+        sessionStorage.setItem(STORAGE_KEYS.session, data.token);
+      }
+    })
+    .catch(console.error);
+})();
+
+function getSessionToken() {
+  return sessionStorage.getItem(STORAGE_KEYS.session) || null;
+}
+
+function showLoginPrompt() {
+  if (document.getElementById("clarity-login-banner")) return;
+  const banner = document.createElement("div");
+  banner.id = "clarity-login-banner";
+  banner.innerHTML = `<div style="position:fixed;top:0;left:0;right:0;background:#2d5a27;color:white;padding:12px;text-align:center;z-index:9999;font-family:sans-serif;">
+    Your session has expired. <a href="${BACKEND_URL}/auth/login" style="color:#fff;font-weight:bold;text-decoration:underline">Sign in again</a>
+  </div>`;
+  document.body.prepend(banner);
+}
 
 init().catch((error) => {
   console.error(error);
@@ -1539,8 +1575,9 @@ function persistGeneratedNote() {
 
 async function apiRequest(path, options = {}) {
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const token = getSessionToken();
   const headers = {
-    "X-User-Id": state.userId,
+    ...(token ? { Authorization: `Bearer ${token}` } : { "X-User-Id": state.userId }),
     ...(options.headers || {}),
   };
 
@@ -1553,6 +1590,12 @@ async function apiRequest(path, options = {}) {
     headers,
     body: options.body,
   });
+
+  if (response.status === 401) {
+    sessionStorage.removeItem(STORAGE_KEYS.session);
+    showLoginPrompt();
+    throw new Error("Session expired. Please sign in again.");
+  }
 
   const text = await response.text();
   const parsed = safelyParseJSON(text);
