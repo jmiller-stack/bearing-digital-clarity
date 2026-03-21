@@ -565,6 +565,7 @@ input[type="radio"] {
 
 .voice-button-icon {
   font-size: 18px;
+  margin-right: 6px;
 }
 
 .voice-timer {
